@@ -1,0 +1,197 @@
+version: '3.8'
+
+services:
+  # ============= DATABASES =============
+  
+  postgres:
+    image: postgres:16-alpine
+    container_name: mov-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: dev123
+      POSTGRES_DB: mov_auth
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - mov-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    container_name: mov-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: dev123
+    volumes:
+      - mongodb-data:/data/db
+    networks:
+      - mov-network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mov-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - mov-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============= DATABASE MANAGEMENT TOOLS =============
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: mov-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@mov.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    networks:
+      - mov-network
+    depends_on:
+      - postgres
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mov-mongo-express
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: dev123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:dev123@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    networks:
+      - mov-network
+    depends_on:
+      - mongodb
+
+  # ============= MICROSERVICES =============
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: mov-api-gateway
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth-service:3001
+      EVENT_SERVICE_URL: http://event-service:3002
+      ENROLLMENT_SERVICE_URL: http://enrollment-service:3003
+      CHAT_SERVICE_URL: http://chat-service:3004
+      JWT_SECRET: your-super-secret-jwt-key
+    volumes:
+      - ./services/api-gateway:/app
+      - /app/node_modules
+    networks:
+      - mov-network
+    depends_on:
+      - auth-service
+      - event-service
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: mov-auth-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: dev123
+      POSTGRES_DB: mov_auth
+      JWT_SECRET: your-super-secret-jwt-key
+      JWT_EXPIRES_IN: 24h
+    volumes:
+      - ./services/auth-service:/app
+      - /app/node_modules
+    networks:
+      - mov-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  event-service:
+    build:
+      context: ./services/event-service
+      dockerfile: Dockerfile
+    container_name: mov-event-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: development
+      PORT: 3002
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: dev123
+      POSTGRES_DB: mov_events
+      AUTH_SERVICE_URL: http://auth-service:3001
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./services/event-service:/app
+      - /app/node_modules
+    networks:
+      - mov-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+# ============= VOLUMES =============
+
+volumes:
+  postgres-data:
+    driver: local
+  mongodb-data:
+    driver: local
+  redis-data:
+    driver: local
+  pgadmin-data:
+    driver: local
+
+# ============= NETWORKS =============
+
+networks:
+  mov-network:
+    driver: bridge

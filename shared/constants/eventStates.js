@@ -1,0 +1,26 @@
+// Shared constants for event states across all services
+
+const EVENT_STATES = {
+  PLANNING: 'Planning',
+  PUBLISHED: 'Published',
+  RUNNING: 'Running',
+  COMPLETED: 'Completed',
+  CANCELED: 'Canceled',
+};
+
+const EVENT_STATE_VALUES = Object.values(EVENT_STATES);
+
+// Valid state transitions
+const VALID_TRANSITIONS = {
+  [EVENT_STATES.PLANNING]: [EVENT_STATES.PUBLISHED, EVENT_STATES.CANCELED],
+  [EVENT_STATES.PUBLISHED]: [EVENT_STATES.RUNNING, EVENT_STATES.CANCELED],
+  [EVENT_STATES.RUNNING]: [EVENT_STATES.COMPLETED],
+  [EVENT_STATES.COMPLETED]: [],
+  [EVENT_STATES.CANCELED]: [],
+};
+
+module.exports = {
+  EVENT_STATES,
+  EVENT_STATE_VALUES,
+  VALID_TRANSITIONS,
+};

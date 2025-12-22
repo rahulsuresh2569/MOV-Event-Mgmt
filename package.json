@@ -1,0 +1,52 @@
+{
+  "name": "mov-event-management",
+  "version": "1.0.0",
+  "description": "Microservices-based Event Management System",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:gateway\" \"npm run dev:auth\" \"npm run dev:event\"",
+    "dev:gateway": "cd services/api-gateway && npm run dev",
+    "dev:auth": "cd services/auth-service && npm run dev",
+    "dev:event": "cd services/event-service && npm run dev",
+    "test": "npm run test:auth && npm run test:event",
+    "test:auth": "cd services/auth-service && npm test",
+    "test:event": "cd services/event-service && npm test",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,json,md}\"",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "prepare": "husky install"
+  },
+  "keywords": [
+    "microservices",
+    "event-management",
+    "nodejs",
+    "express",
+    "postgresql",
+    "mongodb"
+  ],
+  "author": "MOV Team",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "eslint": "^8.56.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.1.1"
+  },
+  "lint-staged": {
+    "*.js": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  }
+}
