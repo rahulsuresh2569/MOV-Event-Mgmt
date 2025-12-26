@@ -1,9 +1,9 @@
 require('dotenv').config();
 const app = require('./app');
 const { sequelize, testConnection } = require('./config/database');
-const logger = require('../../shared/utils/logger');
+const logger = require('./utils/logger');
 
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT;
 
 const startServer = async () => {
   try {

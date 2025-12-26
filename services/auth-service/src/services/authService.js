@@ -1,8 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
-const logger = require('../../../shared/utils/logger');
-const { HTTP_STATUS, ERROR_CODES } = require('../../../shared/constants/httpStatus');
+const logger = require('../utils/logger');
+const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 
 class AuthService {
   /**
@@ -85,7 +85,7 @@ class AuthService {
           role: user.role,
         },
         process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || '24h' }
+        { expiresIn: process.env.JWT_EXPIRES_IN }
       );
 
       logger.info(`User logged in: ${user.email}`);

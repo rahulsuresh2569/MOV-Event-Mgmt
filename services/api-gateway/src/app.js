@@ -4,8 +4,8 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
-const logger = require('../../shared/utils/logger');
-const { notFoundHandler, errorHandler } = require('../../shared/middleware/errorHandler');
+const logger = require('./utils/logger');
+const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
 
@@ -77,7 +77,7 @@ const proxyOptions = {
 app.use(
   '/api/v1/auth',
   createProxyMiddleware({
-    target: process.env.AUTH_SERVICE_URL || 'http://localhost:3001',
+    target: process.env.AUTH_SERVICE_URL,
     pathRewrite: { '^/api/v1/auth': '/api/v1' },
     ...proxyOptions,
   })
@@ -87,7 +87,7 @@ app.use(
 app.use(
   '/api/v1/events',
   createProxyMiddleware({
-    target: process.env.EVENT_SERVICE_URL || 'http://localhost:3002',
+    target: process.env.EVENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/events': '/api/v1' },
     ...proxyOptions,
   })
@@ -97,7 +97,7 @@ app.use(
 app.use(
   '/api/v1/enrollments',
   createProxyMiddleware({
-    target: process.env.ENROLLMENT_SERVICE_URL || 'http://localhost:3003',
+    target: process.env.ENROLLMENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/enrollments': '/api/v1' },
     ...proxyOptions,
   })
@@ -107,7 +107,7 @@ app.use(
 app.use(
   '/api/v1/chat',
   createProxyMiddleware({
-    target: process.env.CHAT_SERVICE_URL || 'http://localhost:3004',
+    target: process.env.CHAT_SERVICE_URL,
     pathRewrite: { '^/api/v1/chat': '/api/v1' },
     ...proxyOptions,
   })
@@ -117,7 +117,7 @@ app.use(
 app.use(
   '/api/v1/notifications',
   createProxyMiddleware({
-    target: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:3005',
+    target: process.env.NOTIFICATION_SERVICE_URL,
     pathRewrite: { '^/api/v1/notifications': '/api/v1' },
     ...proxyOptions,
   })

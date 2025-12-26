@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { EVENT_STATE_VALUES } = require('../../../shared/constants/eventStates');
+const { EVENT_STATE_VALUES } = require('../constants/eventStates');
 
 const createEventSchema = Joi.object({
   title: Joi.string().min(3).max(200).required().messages({

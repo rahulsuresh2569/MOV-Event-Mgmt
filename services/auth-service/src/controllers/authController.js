@@ -1,6 +1,6 @@
 const authService = require('../services/authService');
-const { successResponse } = require('../../../shared/utils/responseFormatter');
-const { HTTP_STATUS } = require('../../../shared/constants/httpStatus');
+const { successResponse } = require('../utils/responseFormatter');
+const { HTTP_STATUS } = require('../constants/httpStatus');
 const { registerSchema, loginSchema } = require('../validators/authValidator');
 
 class AuthController {

@@ -1,4 +1,4 @@
-// Shared constants for user roles across all services
+// User roles for auth service
 
 const ROLES = {
   ORGANIZER: 'ORGANIZER',

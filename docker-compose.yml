@@ -12,7 +12,7 @@ services:
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: dev123
-      POSTGRES_DB: mov_auth
+      POSTGRES_DB: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
@@ -112,10 +112,8 @@ services:
       EVENT_SERVICE_URL: http://event-service:3002
       ENROLLMENT_SERVICE_URL: http://enrollment-service:3003
       CHAT_SERVICE_URL: http://chat-service:3004
+      NOTIFICATION_SERVICE_URL: http://notification-service:3005
       JWT_SECRET: your-super-secret-jwt-key
-    volumes:
-      - ./services/api-gateway:/app
-      - /app/node_modules
     networks:
       - mov-network
     depends_on:
@@ -140,9 +138,6 @@ services:
       POSTGRES_DB: mov_auth
       JWT_SECRET: your-super-secret-jwt-key
       JWT_EXPIRES_IN: 24h
-    volumes:
-      - ./services/auth-service:/app
-      - /app/node_modules
     networks:
       - mov-network
     depends_on:
@@ -167,9 +162,6 @@ services:
       POSTGRES_DB: mov_events
       AUTH_SERVICE_URL: http://auth-service:3001
       REDIS_URL: redis://redis:6379
-    volumes:
-      - ./services/event-service:/app
-      - /app/node_modules
     networks:
       - mov-network
     depends_on:

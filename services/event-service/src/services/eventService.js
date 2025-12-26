@@ -1,7 +1,7 @@
 const Event = require('../models/Event');
-const logger = require('../../../shared/utils/logger');
-const { HTTP_STATUS, ERROR_CODES } = require('../../../shared/constants/httpStatus');
-const { EVENT_STATES, VALID_TRANSITIONS } = require('../../../shared/constants/eventStates');
+const logger = require('../utils/logger');
+const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
+const { EVENT_STATES, VALID_TRANSITIONS } = require('../constants/eventStates');
 
 class EventService {
   /**

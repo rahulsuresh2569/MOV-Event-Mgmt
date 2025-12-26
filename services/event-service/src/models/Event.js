@@ -1,6 +1,6 @@
 const { DataTypes } = require('sequelize');
 const { sequelize } = require('../config/database');
-const { EVENT_STATE_VALUES } = require('../../../shared/constants/eventStates');
+const { EVENT_STATE_VALUES } = require('../constants/eventStates');
 
 const Event = sequelize.define(
   'Event',

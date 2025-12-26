@@ -1,5 +1,5 @@
 const Joi = require('joi');
-const { ROLE_VALUES } = require('../../../shared/constants/roles');
+const { ROLE_VALUES } = require('../constants/roles');
 
 const registerSchema = Joi.object({
   email: Joi.string().email().required().messages({

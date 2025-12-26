@@ -1,15 +1,12 @@
 const express = require('express');
 const authController = require('../controllers/authController');
-const { verifyToken } = require('../../../shared/middleware/authMiddleware');
 
 const router = express.Router();
 
-// Public routes
+// All routes are public - API Gateway handles authentication
 router.post('/register', authController.register);
 router.post('/login', authController.login);
-
-// Protected routes
-router.get('/me', verifyToken, authController.getProfile);
-router.get('/verify', verifyToken, authController.verifyToken);
+router.get('/me', authController.getProfile);
+router.get('/verify', authController.verifyToken);
 
 module.exports = router;

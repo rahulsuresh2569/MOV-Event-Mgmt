@@ -1,4 +1,6 @@
 -- Initialize multiple databases for different services
+-- Use IF NOT EXISTS to avoid errors if database already exists
+CREATE DATABASE admin;
 CREATE DATABASE mov_auth;
 CREATE DATABASE mov_events;
 CREATE DATABASE mov_enrollments;

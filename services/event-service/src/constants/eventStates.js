@@ -1,4 +1,4 @@
-// Shared constants for event states across all services
+// Event states and transitions for event service
 
 const EVENT_STATES = {
   PLANNING: 'Planning',
