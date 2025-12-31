@@ -76,7 +76,27 @@ const requireRole = (allowedRoles) => (req, res, next) => {
   next();
 };
 
+/**
+ * Middleware to forward user context to backend services
+ * Adds custom headers with user info for backend to use
+ */
+const forwardUserContext = (proxyReq, req, res) => {
+  if (req.user) {
+    // Only log for authenticated requests
+    console.log('[API Gateway] Forwarding user context:', {
+      userId: req.user.id,
+      role: req.user.role
+    });
+    
+    proxyReq.setHeader('X-User-Id', req.user.id);
+    proxyReq.setHeader('X-User-Email', req.user.email);
+    proxyReq.setHeader('X-User-Role', req.user.role);
+  }
+  // No logging for public routes (req.user undefined is expected)
+};
+
 module.exports = {
   verifyToken,
   requireRole,
+  forwardUserContext,
 };

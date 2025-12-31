@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const logger = require('./utils/logger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { extractUserFromHeaders } = require('./middleware/extractUser');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
@@ -33,6 +34,9 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// Extract user context from gateway headers
+app.use(extractUserFromHeaders);
 
 // API routes
 app.use('/api/v1', authRoutes);

@@ -6,6 +6,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
 const logger = require('./utils/logger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
+const { verifyToken, requireRole, forwardUserContext } = require('./middleware/authMiddleware');
 
 const app = express();
 
@@ -22,9 +23,8 @@ app.use(cors(corsOptions));
 // Request logging
 app.use(morgan('combined', { stream: { write: (message) => logger.http(message.trim()) } }));
 
-// Body parsing
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Note: Body parsing is NOT needed in API Gateway as we're just proxying requests
+// The backend services will handle body parsing themselves
 
 // Rate limiting
 const limiter = rateLimit({
@@ -63,6 +63,7 @@ app.get('/api/v1', (req, res) => {
 const proxyOptions = {
   changeOrigin: true,
   logLevel: 'warn',
+  onProxyReq: forwardUserContext, // Forward user context to backend services
   onError: (err, req, res) => {
     logger.error(`Proxy error: ${err.message}`);
     res.status(503).json({
@@ -73,9 +74,10 @@ const proxyOptions = {
   },
 };
 
-// Auth Service proxy
+// ============= AUTH SERVICE ROUTES =============
+// Public routes (no auth needed)
 app.use(
-  '/api/v1/auth',
+  '/api/v1/auth/register',
   createProxyMiddleware({
     target: process.env.AUTH_SERVICE_URL,
     pathRewrite: { '^/api/v1/auth': '/api/v1' },
@@ -83,9 +85,30 @@ app.use(
   })
 );
 
-// Event Service proxy
 app.use(
-  '/api/v1/events',
+  '/api/v1/auth/login',
+  createProxyMiddleware({
+    target: process.env.AUTH_SERVICE_URL,
+    pathRewrite: { '^/api/v1/auth': '/api/v1' },
+    ...proxyOptions,
+  })
+);
+
+// Protected auth routes (require authentication)
+app.use(
+  '/api/v1/auth',
+  verifyToken, // Verify JWT token
+  createProxyMiddleware({
+    target: process.env.AUTH_SERVICE_URL,
+    pathRewrite: { '^/api/v1/auth': '/api/v1' },
+    ...proxyOptions,
+  })
+);
+
+// ============= EVENT SERVICE ROUTES =============
+// Public routes (viewing events)
+app.get(
+  '/api/v1/events/events',
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/events': '/api/v1' },
@@ -93,9 +116,32 @@ app.use(
   })
 );
 
-// Enrollment Service proxy (to be implemented in MS3)
+app.get(
+  '/api/v1/events/events/:id',
+  createProxyMiddleware({
+    target: process.env.EVENT_SERVICE_URL,
+    pathRewrite: { '^/api/v1/events': '/api/v1' },
+    ...proxyOptions,
+  })
+);
+
+// Protected routes (creating/modifying events - ORGANIZER only)
+app.use(
+  '/api/v1/events',
+  verifyToken, // Verify JWT token
+  requireRole(['ORGANIZER']), // Only organizers can manage events
+  createProxyMiddleware({
+    target: process.env.EVENT_SERVICE_URL,
+    pathRewrite: { '^/api/v1/events': '/api/v1' },
+    ...proxyOptions,
+  })
+);
+
+// ============= ENROLLMENT SERVICE ROUTES =============
+// All enrollment routes require authentication
 app.use(
   '/api/v1/enrollments',
+  verifyToken,
   createProxyMiddleware({
     target: process.env.ENROLLMENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/enrollments': '/api/v1' },
@@ -103,9 +149,11 @@ app.use(
   })
 );
 
-// Chat Service proxy (to be implemented in MS4)
+// ============= CHAT SERVICE ROUTES =============
+// All chat routes require authentication
 app.use(
   '/api/v1/chat',
+  verifyToken,
   createProxyMiddleware({
     target: process.env.CHAT_SERVICE_URL,
     pathRewrite: { '^/api/v1/chat': '/api/v1' },
@@ -113,9 +161,11 @@ app.use(
   })
 );
 
-// Notification Service proxy (to be implemented in MS4)
+// ============= NOTIFICATION SERVICE ROUTES =============
+// All notification routes require authentication
 app.use(
   '/api/v1/notifications',
+  verifyToken,
   createProxyMiddleware({
     target: process.env.NOTIFICATION_SERVICE_URL,
     pathRewrite: { '^/api/v1/notifications': '/api/v1' },
