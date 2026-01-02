@@ -38,8 +38,8 @@ app.get('/health', (req, res) => {
 // Extract user context from gateway headers
 app.use(extractUserFromHeaders);
 
-// API routes
-app.use('/api/v1', eventRoutes);
+// API routes - mounted at root because gateway forwards to /
+app.use('/', eventRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

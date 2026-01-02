@@ -90,9 +90,15 @@ class EventService {
         throw error;
       }
 
-      // Check if event has started
-      if (event.status === EVENT_STATES.RUNNING || event.status === EVENT_STATES.COMPLETED) {
-        const error = new Error('Cannot update event that has started or completed');
+      // Check if event is in a final or active state
+      if (
+        event.status === EVENT_STATES.RUNNING ||
+        event.status === EVENT_STATES.COMPLETED ||
+        event.status === EVENT_STATES.CANCELED
+      ) {
+        const error = new Error(
+          'Cannot update event that has started, completed, or been canceled'
+        );
         error.statusCode = HTTP_STATUS.BAD_REQUEST;
         error.errorCode = ERROR_CODES.INVALID_STATE_TRANSITION;
         throw error;
@@ -134,6 +140,7 @@ class EventService {
       if (event.currentParticipants > 0) {
         const error = new Error('Cannot delete event with registered participants');
         error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        error.errorCode = ERROR_CODES.BAD_REQUEST;
         throw error;
       }
 

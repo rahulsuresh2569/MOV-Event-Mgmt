@@ -106,21 +106,21 @@ app.use(
 );
 
 // ============= EVENT SERVICE ROUTES =============
-// Public routes (viewing events)
+// Public routes (viewing events - no authentication required)
 app.get(
-  '/api/v1/events/events',
+  '/api/v1/events',
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
-    pathRewrite: { '^/api/v1/events': '/api/v1' },
+    pathRewrite: { '^/api/v1/events': '/' },  // Rewrite to root
     ...proxyOptions,
   })
 );
 
 app.get(
-  '/api/v1/events/events/:id',
+  '/api/v1/events/:id',
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
-    pathRewrite: { '^/api/v1/events': '/api/v1' },
+    pathRewrite: { '^/api/v1/events': '/' },  // Rewrite to root
     ...proxyOptions,
   })
 );
@@ -132,7 +132,7 @@ app.use(
   requireRole(['ORGANIZER']), // Only organizers can manage events
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
-    pathRewrite: { '^/api/v1/events': '/api/v1' },
+    pathRewrite: { '^/api/v1/events': '/' },  // Rewrite to root
     ...proxyOptions,
   })
 );

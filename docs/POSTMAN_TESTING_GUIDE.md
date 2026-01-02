@@ -15,17 +15,17 @@
 ### Public Routes (No Token Required)
 - ✅ `POST /auth/register` - User registration
 - ✅ `POST /auth/login` - User login
-- ✅ `GET /events/events` - View all events
-- ✅ `GET /events/events/:id` - View single event
+- ✅ `GET /events` - View all events
+- ✅ `GET /events/:id` - View single event
 
 ### Protected Routes (Token Required)
 - 🔒 `GET /auth/me` - Get user profile
 - 🔒 `GET /auth/verify` - Verify token validity
-- 🔒 `POST /events/events` - Create event (ORGANIZER only)
-- 🔒 `PUT /events/events/:id` - Update event (ORGANIZER only)
-- 🔒 `DELETE /events/events/:id` - Delete event (ORGANIZER only)
-- 🔒 `PATCH /events/events/:id/status` - Change event status (ORGANIZER only)
-- 🔒 `GET /events/events/organizer/me` - Get my events (ORGANIZER only)
+- 🔒 `POST /events` - Create event (ORGANIZER only)
+- 🔒 `PUT /events/:id` - Update event (ORGANIZER only)
+- 🔒 `DELETE /events/:id` - Delete event (ORGANIZER only)
+- 🔒 `PATCH /events/:id/status` - Change event status (ORGANIZER only)
+- 🔒 `GET /events/organizer/me` - Get my events (ORGANIZER only)
 
 **How Authentication Works:**
 1. User logs in → Receives JWT token
@@ -168,7 +168,7 @@ Authorization: Bearer YOUR_TOKEN_HERE
 ### 2.1 Create Event (Organizer)
 
 **Method:** POST  
-**URL:** `http://localhost:3000/api/v1/events/events`  
+**URL:** `http://localhost:3000/api/v1/events`  
 **Headers:**
 ```
 Content-Type: application/json
@@ -214,7 +214,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ### 2.2 Get All Events (Public)
 
 **Method:** GET  
-**URL:** `http://localhost:3000/api/v1/events/events`  
+**URL:** `http://localhost:3000/api/v1/events`  
 
 **Optional Query Params:**
 - `status=Published` - Filter by status
@@ -243,14 +243,14 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ### 2.3 Get Event by ID (Public)
 
 **Method:** GET  
-**URL:** `http://localhost:3000/api/v1/events/events/1`  
+**URL:** `http://localhost:3000/api/v1/events/1`  
 
 ---
 
 ### 2.4 Update Event (Organizer)
 
 **Method:** PUT  
-**URL:** `http://localhost:3000/api/v1/events/events/1`  
+**URL:** `http://localhost:3000/api/v1/events/1`  
 **Headers:**
 ```
 Content-Type: application/json
@@ -270,7 +270,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ### 2.5 Change Event Status (Organizer)
 
 **Method:** PATCH  
-**URL:** `http://localhost:3000/api/v1/events/events/1/status`  
+**URL:** `http://localhost:3000/api/v1/events/1/status`  
 **Headers:**
 ```
 Content-Type: application/json
@@ -294,7 +294,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ### 2.6 Get My Events (Organizer)
 
 **Method:** GET  
-**URL:** `http://localhost:3000/api/v1/events/events/organizer/me`  
+**URL:** `http://localhost:3000/api/v1/events/organizer/me`  
 **Headers:**
 ```
 Authorization: Bearer YOUR_ORGANIZER_TOKEN
@@ -305,7 +305,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ### 2.7 Delete Event (Organizer)
 
 **Method:** DELETE  
-**URL:** `http://localhost:3000/api/v1/events/events/1`  
+**URL:** `http://localhost:3000/api/v1/events/1`  
 **Headers:**
 ```
 Authorization: Bearer YOUR_ORGANIZER_TOKEN
@@ -325,7 +325,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 3. Try to create event with participant token
 
 **Method:** POST  
-**URL:** `http://localhost:3000/api/v1/events/events`  
+**URL:** `http://localhost:3000/api/v1/events`  
 **Headers:**
 ```
 Authorization: Bearer YOUR_PARTICIPANT_TOKEN
@@ -348,7 +348,7 @@ Content-Type: application/json
 **Scenario:** Verify that organizers CAN create events
 
 **Method:** POST  
-**URL:** `http://localhost:3000/api/v1/events/events`  
+**URL:** `http://localhost:3000/api/v1/events`  
 **Headers:**
 ```
 Authorization: Bearer YOUR_ORGANIZER_TOKEN
@@ -371,7 +371,7 @@ Content-Type: application/json
 **Scenario:** Verify that protected routes reject requests without tokens
 
 **Method:** POST  
-**URL:** `http://localhost:3000/api/v1/events/events`  
+**URL:** `http://localhost:3000/api/v1/events`  
 **Headers:**
 ```
 Content-Type: application/json
@@ -508,9 +508,9 @@ Authorization: Bearer {{organizer_token}}
 
 **Dynamic URLs:**
 ```
-GET {{base_url}}/events/events/{{event_id}}
-PUT {{base_url}}/events/events/{{event_id}}
-DELETE {{base_url}}/events/events/{{event_id}}
+GET {{base_url}}/events/{{event_id}}
+PUT {{base_url}}/events/{{event_id}}
+DELETE {{base_url}}/events/{{event_id}}
 ```
 
 ### Step 6: Add Test Assertions
@@ -696,7 +696,7 @@ pm.test("Token is valid JWT", function () {
 **Solution:**
 - Check event ID is correct
 - Event might have been deleted
-- Verify event exists: `GET /events/events`
+- Verify event exists: `GET /events`
 
 ---
 
