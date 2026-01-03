@@ -182,11 +182,8 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
   "description": "Annual technology conference featuring latest innovations",
   "category": "Technology",
   "location": "Berlin Convention Center",
-  "startDateTime": "2025-03-15T09:00:00Z",
-  "endDateTime": "2025-03-15T18:00:00Z",
-  "maxParticipants": 500,
-  "registrationDeadline": "2025-03-10T23:59:59Z",
-  "imageUrl": "https://example.com/tech-conf.jpg"
+  "date": "2025-03-15T09:00:00.000Z",
+  "maxParticipants": 500
 }
 ```
 
@@ -199,11 +196,16 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
     "event": {
       "id": 1,
       "title": "Tech Conference 2025",
+      "description": "Annual technology conference featuring latest innovations",
+      "category": "Technology",
+      "location": "Berlin Convention Center",
+      "date": "2025-03-15T09:00:00.000Z",
+      "maxParticipants": 500,
+      "currentParticipants": 0,
       "status": "Planning",
       "organizerId": 1,
-      "currentParticipants": 0,
-      "maxParticipants": 500,
-      ...
+      "createdAt": "2026-01-03T00:00:00.000Z",
+      "updatedAt": "2026-01-03T00:00:00.000Z"
     }
   }
 }
@@ -261,6 +263,7 @@ Authorization: Bearer YOUR_ORGANIZER_TOKEN
 ```json
 {
   "title": "Tech Conference 2025 - Updated",
+  "description": "Updated description with new details",
   "maxParticipants": 600
 }
 ```
@@ -549,7 +552,7 @@ pm.test("Token is valid JWT", function () {
 
 1. **Missing Services** - Enrollment, Chat, Notification not yet implemented
 2. **No Pagination** - Event listings return all results
-3. **No File Upload** - Event images only support URLs
+3. **No Image Support** - Event images/attachments not yet implemented
 4. **No Real-time Features** - Chat and notifications require WebSocket implementation
 
 ---
