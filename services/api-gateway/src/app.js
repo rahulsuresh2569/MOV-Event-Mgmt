@@ -600,6 +600,74 @@ app.get(
  *         description: Only organizer can change event status
  *       404:
  *         description: Event not found
+ *
+ * /api/v1/enrollments:
+ *   post:
+ *     summary: Enroll in an event
+ *     description: Register the authenticated user for a published event
+ *     tags: [Enrollments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - eventId
+ *             properties:
+ *               eventId:
+ *                 type: integer
+ *                 example: 1
+ *     responses:
+ *       201:
+ *         description: Enrolled successfully
+ *       400:
+ *         description: Event not in Published state or capacity full
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Event not found
+ *       409:
+ *         description: Already enrolled
+ *
+ * /api/v1/enrollments/me:
+ *   get:
+ *     summary: Get user's enrollments
+ *     description: Retrieve all active enrollments for the authenticated user
+ *     tags: [Enrollments]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Enrollments retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *
+ * /api/v1/enrollments/{eventId}:
+ *   delete:
+ *     summary: Unenroll from an event
+ *     description: Cancel enrollment for a published event
+ *     tags: [Enrollments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Unenrolled successfully
+ *       400:
+ *         description: Event not in Published state
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Not enrolled or event not found
  */
 // Protected routes (creating/modifying events - ORGANIZER only)
 app.use(
@@ -620,7 +688,7 @@ app.use(
   verifyToken,
   createProxyMiddleware({
     target: process.env.ENROLLMENT_SERVICE_URL,
-    pathRewrite: { '^/api/v1/enrollments': '/api/v1' },
+    pathRewrite: { '^/api/v1/enrollments': '' },
     ...proxyOptions,
   })
 );

@@ -119,6 +119,7 @@ services:
     depends_on:
       - auth-service
       - event-service
+      - enrollment-service
 
   auth-service:
     build:
@@ -169,6 +170,33 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  enrollment-service:
+    build:
+      context: ./services/enrollment-service
+      dockerfile: Dockerfile
+    container_name: mov-enrollment-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: development
+      PORT: 3003
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: dev123
+      DB_NAME: mov_enrollments
+      DB_DIALECT: postgres
+      EVENT_SERVICE_URL: http://event-service:3002
+      LOG_LEVEL: info
+    networks:
+      - mov-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      event-service:
+        condition: service_started
 
 # ============= VOLUMES =============
 

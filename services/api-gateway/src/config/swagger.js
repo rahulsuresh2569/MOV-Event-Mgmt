@@ -232,6 +232,10 @@ const swaggerDefinition = {
       description: 'Event management endpoints',
     },
     {
+      name: 'Enrollments',
+      description: 'Event enrollment and registration endpoints',
+    },
+    {
       name: 'Health',
       description: 'Service health check endpoints',
     },

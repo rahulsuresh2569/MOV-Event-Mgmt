@@ -136,6 +136,21 @@ class EventController {
       next(error);
     }
   }
+
+  /**
+   * Update participant count (internal endpoint for enrollment service)
+   * PATCH /api/v1/events/:id/participants
+   */
+  async updateParticipantCount(req, res, next) {
+    try {
+      const { increment } = req.body;
+      const event = await eventService.updateParticipantCount(req.params.id, increment);
+
+      return successResponse(res, HTTP_STATUS.OK, 'Participant count updated', { event });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new EventController();

@@ -207,6 +207,29 @@ class EventService {
       throw error;
     }
   }
+
+  /**
+   * Update event participant count (for enrollment service)
+   */
+  async updateParticipantCount(eventId, increment = true) {
+    try {
+      const event = await this.getEventById(eventId);
+
+      const newCount = increment
+        ? event.currentParticipants + 1
+        : Math.max(0, event.currentParticipants - 1);
+
+      await event.update({ currentParticipants: newCount });
+
+      logger.info(
+        `Event ${eventId} participant count ${increment ? 'incremented' : 'decremented'} to ${newCount}`
+      );
+      return event;
+    } catch (error) {
+      logger.error(`Error updating participant count: ${error.message}`);
+      throw error;
+    }
+  }
 }
 
 module.exports = new EventService();
