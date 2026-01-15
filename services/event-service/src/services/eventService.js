@@ -2,8 +2,50 @@ const Event = require('../models/Event');
 const logger = require('../utils/logger');
 const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 const { EVENT_STATES, VALID_TRANSITIONS } = require('../constants/eventStates');
+const axios = require('axios');
+const { Op } = require('sequelize');
+
+const ENROLLMENT_SERVICE_URL = process.env.ENROLLMENT_SERVICE_URL || 'http://localhost:3003';
 
 class EventService {
+  /**
+   * Helper: Get event IDs the user is enrolled in
+   */
+  async getUserEnrolledEventIds(userId) {
+    try {
+      const response = await axios.get(`${ENROLLMENT_SERVICE_URL}/me`, {
+        headers: {
+          'x-user-id': userId,
+          // Note: These headers are required by enrollment-service's extractUser middleware
+          // In a real scenario, we'd need to pass the full user context
+          // For now, we only need the userId since we're just fetching enrollment data
+          'x-user-email': 'internal-service-call@system',
+          'x-user-role': 'INTERNAL',
+        },
+      });
+
+      // Response structure: { success: true, message: "...", data: { enrollments: [...] } }
+      // Extract event IDs from enrollments where status is 'active'
+      const enrollments = response.data.data?.enrollments || [];
+      
+      const enrolledEventIds = enrollments
+        .filter((enrollment) => enrollment.status === 'active')
+        .map((enrollment) => enrollment.eventId);
+
+      logger.info(`User ${userId} is enrolled in ${enrolledEventIds.length} events: [${enrolledEventIds.join(', ')}]`);
+      
+      return enrolledEventIds;
+    } catch (error) {
+      logger.error(`Error fetching user enrollments: ${error.message}`);
+      if (error.response) {
+        logger.error(`Response status: ${error.response.status}`);
+        logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
+      }
+      // Return empty array if enrollment service is unavailable
+      return [];
+    }
+  }
+
   /**
    * Create a new event
    */
@@ -24,12 +66,16 @@ class EventService {
   }
 
   /**
-   * Get all events (with optional filters)
+   * Get all events (with optional filters and visibility rules)
+   * @param {Object} filters - Query filters (status, category, organizerId)
+   * @param {string} userId - User ID (null for unauthenticated users)
+   * @param {string} userRole - User role (null for unauthenticated users)
    */
-  async getAllEvents(filters = {}) {
+  async getAllEvents(filters = {}, userId = null, userRole = null) {
     try {
       const where = {};
 
+      // Apply base filters from query parameters
       if (filters.status) {
         where.status = filters.status;
       }
@@ -42,10 +88,90 @@ class EventService {
         where.organizerId = filters.organizerId;
       }
 
+      // Apply visibility rules based on authentication and role
+      if (!userId) {
+        // Unauthenticated users: Only see Published and Running events (public discovery)
+        where.status = {
+          [Op.in]: [EVENT_STATES.PUBLISHED, EVENT_STATES.RUNNING],
+        };
+      } else if (userRole && userRole.toUpperCase() === 'PARTICIPANT') {
+        // Participants: See Published/Running (all) + Completed/Canceled (only enrolled)
+        
+        // Get events the participant is enrolled in
+        const enrolledEventIds = await this.getUserEnrolledEventIds(userId);
+
+        // Build visibility conditions
+        const visibilityConditions = [
+          // Always show Published and Running events
+          {
+            status: {
+              [Op.in]: [EVENT_STATES.PUBLISHED, EVENT_STATES.RUNNING],
+            },
+          },
+        ];
+
+        // Add Completed and Canceled events only if user is enrolled
+        if (enrolledEventIds.length > 0) {
+          visibilityConditions.push({
+            [Op.and]: [
+              {
+                status: {
+                  [Op.in]: [EVENT_STATES.COMPLETED, EVENT_STATES.CANCELED],
+                },
+              },
+              {
+                id: {
+                  [Op.in]: enrolledEventIds,
+                },
+              },
+            ],
+          });
+        }
+
+        // Combine with existing where conditions
+        if (Object.keys(where).length > 0) {
+          where[Op.and] = [{ ...where }, { [Op.or]: visibilityConditions }];
+          // Remove status from top level if it exists
+          delete where.status;
+        } else {
+          where[Op.or] = visibilityConditions;
+        }
+      } else if (userRole && userRole.toUpperCase() === 'ORGANIZER') {
+        // Organizers: See all their own events + Published/Running from others
+        // Note: Organizers cannot enroll in events, so no enrollment-based visibility needed
+
+        // Build visibility conditions
+        const visibilityConditions = [
+          // All events they organize (all states)
+          { organizerId: userId },
+          // Published and Running events from others (for discovery)
+          {
+            status: {
+              [Op.in]: [EVENT_STATES.PUBLISHED, EVENT_STATES.RUNNING],
+            },
+          },
+        ];
+
+        // Combine with existing where conditions
+        if (Object.keys(where).length > 0) {
+          where[Op.and] = [{ ...where }, { [Op.or]: visibilityConditions }];
+          // Remove status and organizerId from top level if they exist
+          delete where.status;
+          delete where.organizerId;
+        } else {
+          where[Op.or] = visibilityConditions;
+        }
+      }
+
+      // Log the final where conditions for debugging
+      logger.debug(`getAllEvents query - userId: ${userId}, role: ${userRole}, where: ${JSON.stringify(where, null, 2)}`);
+
       const events = await Event.findAll({
         where,
         order: [['date', 'ASC']],
       });
+
+      logger.info(`Found ${events.length} events for user ${userId || 'unauthenticated'} with role ${userRole || 'none'}`);
 
       return events;
     } catch (error) {

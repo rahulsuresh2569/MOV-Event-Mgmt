@@ -8,7 +8,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const logger = require('./utils/logger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
-const { verifyToken, requireRole, forwardUserContext } = require('./middleware/authMiddleware');
+const { verifyToken, requireRole, optionalAuth, forwardUserContext } = require('./middleware/authMiddleware');
 
 const app = express();
 
@@ -283,23 +283,40 @@ app.use(
  * @swagger
  * /api/v1/events:
  *   get:
- *     summary: Get all events
+ *     summary: Get all events with role-based visibility filtering
+ *     description: |
+ *       Retrieve events with visibility rules based on authentication status and user role.
+ *       
+ *       **Visibility Rules:**
+ *       - **Unauthenticated users**: See Published and Running events only (public discovery)
+ *       - **Participants**: See Published/Running (all) + Completed/Canceled (only events they enrolled in)
+ *       - **Organizers**: See all their own events (all states) + Published/Running from other organizers
+ *       
+ *       **Note:** Planning events are only visible to the organizer who created them.
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
  *     parameters:
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
  *           enum: [Planning, Published, Running, Completed, Canceled]
- *         description: Filter by event status
+ *         description: Filter by event status (visibility rules still apply)
  *       - in: query
  *         name: category
  *         schema:
  *           type: string
  *         description: Filter by event category
+ *       - in: query
+ *         name: organizerId
+ *         schema:
+ *           type: integer
+ *         description: Filter by organizer ID
  *     responses:
  *       200:
- *         description: Events retrieved successfully
+ *         description: Events retrieved successfully (filtered by visibility rules)
  *         content:
  *           application/json:
  *             schema:
@@ -319,9 +336,10 @@ app.use(
  *                       items:
  *                         $ref: '#/components/schemas/Event'
  */
-// Public routes (viewing events - no authentication required)
+// Public routes (viewing events - optional authentication for personalized results)
 app.get(
   '/api/v1/events',
+  optionalAuth, // Extract user context if token present, but don't require it
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/events': '/' },  // Rewrite to root
@@ -334,7 +352,11 @@ app.get(
  * /api/v1/events/{id}:
  *   get:
  *     summary: Get event by ID
+ *     description: Retrieve a specific event by ID. Authentication is optional. Visibility rules apply based on user role and event state.
  *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *       - {}
  *     parameters:
  *       - in: path
  *         name: id
@@ -370,6 +392,7 @@ app.get(
  */
 app.get(
   '/api/v1/events/:id',
+  optionalAuth, // Extract user context if token present, but don't require it
   createProxyMiddleware({
     target: process.env.EVENT_SERVICE_URL,
     pathRewrite: { '^/api/v1/events': '/' },  // Rewrite to root

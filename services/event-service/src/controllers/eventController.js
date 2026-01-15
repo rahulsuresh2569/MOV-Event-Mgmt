@@ -29,14 +29,18 @@ class EventController {
   }
 
   /**
-   * Get all events
+   * Get all events (with visibility filtering based on user role)
    * GET /api/v1/events
    */
   async getAllEvents(req, res, next) {
     try {
       const { status, category } = req.query;
+      
+      // Extract user context (null for unauthenticated users)
+      const userId = req.user?.id || null;
+      const userRole = req.user?.role || null;
 
-      const events = await eventService.getAllEvents({ status, category });
+      const events = await eventService.getAllEvents({ status, category }, userId, userRole);
 
       return successResponse(res, HTTP_STATUS.OK, 'Events retrieved successfully', { events });
     } catch (error) {

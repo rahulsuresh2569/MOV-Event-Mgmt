@@ -77,6 +77,42 @@ const requireRole = (allowedRoles) => (req, res, next) => {
 };
 
 /**
+ * Optional authentication middleware
+ * Extracts user info if token is present, but doesn't fail if missing
+ * Used for public routes that benefit from user context when available
+ */
+const optionalAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+      
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Attach user info to request object
+        req.user = {
+          id: decoded.userId,
+          email: decoded.email,
+          role: decoded.role,
+        };
+      } catch (error) {
+        // Invalid or expired token - continue without user context
+        // Don't throw error, just log and proceed as unauthenticated
+        console.log('[API Gateway] Invalid token in optional auth, proceeding as unauthenticated');
+      }
+    }
+
+    // Always proceed to next middleware
+    next();
+  } catch (error) {
+    // Should never reach here, but ensure we don't break the request
+    next();
+  }
+};
+
+/**
  * Middleware to forward user context to backend services
  * Adds custom headers with user info for backend to use
  */
@@ -98,5 +134,6 @@ const forwardUserContext = (proxyReq, req, res) => {
 module.exports = {
   verifyToken,
   requireRole,
+  optionalAuth,
   forwardUserContext,
 };
