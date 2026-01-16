@@ -298,6 +298,84 @@ class EnrollmentService {
       throw error;
     }
   }
+
+  /**
+   * Get event statistics (only event organizer can access)
+   * Returns registration metrics, capacity utilization, and cancellation data
+   */
+  async getEventStatistics(eventId, userId) {
+    try {
+      // 1. Fetch event to check ownership and get capacity data
+      const event = await this.getEventById(eventId);
+
+      // 2. Check if user is the organizer of this event
+      if (event.organizerId !== userId) {
+        const error = new Error(
+          'Only the event organizer can view statistics for their events'
+        );
+        error.statusCode = HTTP_STATUS.FORBIDDEN;
+        error.errorCode = ERROR_CODES.AUTHORIZATION_ERROR;
+        throw error;
+      }
+
+      // 3. Get all enrollments (active + canceled) for statistics
+      const allEnrollments = await Enrollment.findAll({
+        where: {
+          eventId,
+        },
+      });
+
+      // 4. Calculate registration metrics
+      const totalRegistrations = allEnrollments.length;
+      const activeRegistrations = allEnrollments.filter(
+        (e) => e.status === ENROLLMENT_STATUS.ACTIVE
+      ).length;
+      const canceledRegistrations = allEnrollments.filter(
+        (e) => e.status === ENROLLMENT_STATUS.CANCELED
+      ).length;
+
+      // 5. Calculate cancellation rate (percentage)
+      const cancellationRate =
+        totalRegistrations > 0
+          ? parseFloat(((canceledRegistrations / totalRegistrations) * 100).toFixed(2))
+          : 0;
+
+      // 6. Calculate capacity metrics
+      const maxCapacity = event.maxParticipants;
+      const currentCapacity = event.currentParticipants;
+      const availableSpots = Math.max(0, maxCapacity - currentCapacity);
+      const utilizationRate =
+        maxCapacity > 0
+          ? parseFloat(((currentCapacity / maxCapacity) * 100).toFixed(2))
+          : 0;
+
+      // 7. Build statistics response
+      const statistics = {
+        eventId: event.id,
+        eventTitle: event.title,
+        eventStatus: event.status,
+        eventDate: event.date,
+        registrations: {
+          total: totalRegistrations,
+          active: activeRegistrations,
+          canceled: canceledRegistrations,
+          cancellationRate: cancellationRate,
+        },
+        capacity: {
+          max: maxCapacity,
+          current: currentCapacity,
+          available: availableSpots,
+          utilizationRate: utilizationRate,
+        },
+      };
+
+      logger.info(`Statistics retrieved for event ${eventId} by organizer ${userId}`);
+      return statistics;
+    } catch (error) {
+      logger.error(`Error fetching event statistics: ${error.message}`);
+      throw error;
+    }
+  }
 }
 
 module.exports = new EnrollmentService();

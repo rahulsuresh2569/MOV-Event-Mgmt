@@ -114,6 +114,33 @@ class EnrollmentController {
       next(err);
     }
   }
+
+  /**
+   * Get event statistics
+   * GET /event/:eventId/statistics
+   */
+  async getEventStatistics(req, res, next) {
+    try {
+      const eventId = parseInt(req.params.eventId, 10);
+
+      if (!eventId || eventId <= 0) {
+        const error = new Error('Invalid event ID');
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
+      }
+
+      const statistics = await enrollmentService.getEventStatistics(eventId, req.user.id);
+
+      return successResponse(
+        res,
+        HTTP_STATUS.OK,
+        'Event statistics retrieved successfully',
+        statistics
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = new EnrollmentController();

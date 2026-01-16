@@ -691,6 +691,100 @@ app.get(
  *         description: Unauthorized
  *       404:
  *         description: Not enrolled or event not found
+ *
+ * /api/v1/enrollments/event/{eventId}/statistics:
+ *   get:
+ *     summary: Get event statistics
+ *     description: |
+ *       Retrieve comprehensive statistics for an event including registration metrics, 
+ *       capacity utilization, and cancellation data. Only the event organizer can access this.
+ *     tags: [Enrollments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Event statistics retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     eventId:
+ *                       type: integer
+ *                       example: 1
+ *                     eventTitle:
+ *                       type: string
+ *                       example: Tech Conference 2026
+ *                     eventStatus:
+ *                       type: string
+ *                       enum: [Planning, Published, Running, Completed, Canceled]
+ *                       example: Published
+ *                     eventDate:
+ *                       type: string
+ *                       format: date-time
+ *                       example: 2026-02-15T09:00:00.000Z
+ *                     registrations:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                           description: Total number of registrations (active + canceled)
+ *                           example: 45
+ *                         active:
+ *                           type: integer
+ *                           description: Current number of active enrollments
+ *                           example: 38
+ *                         canceled:
+ *                           type: integer
+ *                           description: Number of canceled enrollments
+ *                           example: 7
+ *                         cancellationRate:
+ *                           type: number
+ *                           format: float
+ *                           description: Percentage of users who canceled (0-100)
+ *                           example: 15.56
+ *                     capacity:
+ *                       type: object
+ *                       properties:
+ *                         max:
+ *                           type: integer
+ *                           description: Maximum capacity of the event
+ *                           example: 50
+ *                         current:
+ *                           type: integer
+ *                           description: Current number of participants
+ *                           example: 38
+ *                         available:
+ *                           type: integer
+ *                           description: Number of available spots
+ *                           example: 12
+ *                         utilizationRate:
+ *                           type: number
+ *                           format: float
+ *                           description: Percentage of capacity filled (0-100)
+ *                           example: 76.0
+ *       401:
+ *         description: Unauthorized - Token required
+ *       403:
+ *         description: Forbidden - Only event organizer can view statistics
+ *       404:
+ *         description: Event not found
  */
 // Protected routes (creating/modifying events - ORGANIZER only)
 app.use(
