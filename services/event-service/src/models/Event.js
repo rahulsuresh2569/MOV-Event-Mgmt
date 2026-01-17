@@ -23,9 +23,22 @@ const Event = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: true,
     },
-    date: {
+    startDate: {
       type: DataTypes.DATE,
       allowNull: false,
+      field: 'start_date',
+    },
+    endDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'end_date',
+      validate: {
+        isAfterStartDate(value) {
+          if (value && this.startDate && new Date(value) <= new Date(this.startDate)) {
+            throw new Error('Event end date must be after start date');
+          }
+        },
+      },
     },
     location: {
       type: DataTypes.STRING(255),
@@ -66,7 +79,10 @@ const Event = sequelize.define(
         fields: ['status'],
       },
       {
-        fields: ['date'],
+        fields: ['start_date'],
+      },
+      {
+        fields: ['end_date'],
       },
       {
         fields: ['category'],

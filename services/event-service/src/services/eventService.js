@@ -168,7 +168,7 @@ class EventService {
 
       const events = await Event.findAll({
         where,
-        order: [['date', 'ASC']],
+        order: [['startDate', 'ASC']],
       });
 
       logger.info(`Found ${events.length} events for user ${userId || 'unauthenticated'} with role ${userRole || 'none'}`);
@@ -324,7 +324,7 @@ class EventService {
     try {
       const events = await Event.findAll({
         where: { organizerId },
-        order: [['date', 'ASC']],
+        order: [['startDate', 'ASC']],
       });
 
       return events;

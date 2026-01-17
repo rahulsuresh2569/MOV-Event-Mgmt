@@ -100,7 +100,7 @@ const swaggerDefinition = {
           'title',
           'category',
           'location',
-          'date',
+          'startDate',
           'maxParticipants',
         ],
         properties: {
@@ -129,11 +129,17 @@ const swaggerDefinition = {
             description: 'Event location',
             example: 'Berlin Convention Center',
           },
-          date: {
+          startDate: {
             type: 'string',
             format: 'date-time',
-            description: 'Event date and time',
+            description: 'Event start date and time',
             example: '2025-03-15T09:00:00Z',
+          },
+          endDate: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Event end date and time (optional, must be after start date). If provided, events automatically transition to Running at start date and to Completed at end date.',
+            example: '2025-03-15T17:00:00Z',
           },
           maxParticipants: {
             type: 'integer',

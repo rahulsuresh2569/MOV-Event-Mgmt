@@ -8,9 +8,12 @@ const createEventSchema = Joi.object({
     'any.required': 'Title is required',
   }),
   description: Joi.string().max(1000).optional(),
-  date: Joi.date().greater('now').required().messages({
-    'date.greater': 'Event date must be in the future',
-    'any.required': 'Event date is required',
+  startDate: Joi.date().greater('now').required().messages({
+    'date.greater': 'Event start date must be in the future',
+    'any.required': 'Event start date is required',
+  }),
+  endDate: Joi.date().greater(Joi.ref('startDate')).optional().messages({
+    'date.greater': 'Event end date must be after start date',
   }),
   location: Joi.string().max(255).required().messages({
     'any.required': 'Location is required',
@@ -28,7 +31,14 @@ const createEventSchema = Joi.object({
 const updateEventSchema = Joi.object({
   title: Joi.string().min(3).max(200).optional(),
   description: Joi.string().max(1000).optional(),
-  date: Joi.date().greater('now').optional(),
+  startDate: Joi.date().greater('now').optional(),
+  endDate: Joi.date().when('startDate', {
+    is: Joi.exist(),
+    then: Joi.date().greater(Joi.ref('startDate')).optional(),
+    otherwise: Joi.date().optional(),
+  }).messages({
+    'date.greater': 'Event end date must be after start date',
+  }),
   location: Joi.string().max(255).optional(),
   maxParticipants: Joi.number().integer().min(1).max(10000).optional(),
   category: Joi.string().max(50).optional(),

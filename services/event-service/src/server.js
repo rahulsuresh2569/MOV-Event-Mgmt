@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { sequelize, testConnection } = require('./config/database');
 const logger = require('./utils/logger');
+const eventStateScheduler = require('./schedulers/eventStateScheduler');
 
 const PORT = process.env.PORT;
 
@@ -20,11 +21,19 @@ const startServer = async () => {
     const server = app.listen(PORT, () => {
       logger.info(`Event Service running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV}`);
+      
+      // Start event state scheduler
+      eventStateScheduler.start();
+      logger.info('Event state scheduler initialized');
     });
 
     // Graceful shutdown
     process.on('SIGTERM', async () => {
       logger.info('SIGTERM signal received: closing HTTP server');
+      
+      // Stop scheduler
+      eventStateScheduler.stop();
+      
       server.close(async () => {
         logger.info('HTTP server closed');
         await sequelize.close();
