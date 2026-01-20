@@ -7,8 +7,21 @@ const { errorResponse } = require('../utils/responseFormatter');
  * Catches all errors and sends standardized error responses
  */
 const errorHandler = (err, req, res, next) => {
-  logger.error(`Error: ${err.message}`);
-  logger.error(`Stack: ${err.stack}`);
+const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
+
+logger.error(
+  JSON.stringify({
+    service: 'auth-service',
+    method: req.method,
+    url: req.originalUrl,
+    statusCode,
+    errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
+    message: err.message,
+    stack: err.stack,
+    timestamp: new Date().toISOString(),
+  })
+);
+
 
   // Sequelize validation error
   if (err.name === 'SequelizeValidationError') {
