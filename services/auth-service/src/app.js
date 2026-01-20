@@ -41,6 +41,11 @@ app.use(extractUserFromHeaders);
 // API routes
 app.use('/api/v1', authRoutes);
 
+// Test error tracking route (for monitoring)
+app.get('/test-error', (req, res) => {
+  throw new Error('Test error tracking working');
+});
+
 // 404 handler
 app.use(notFoundHandler);
 
