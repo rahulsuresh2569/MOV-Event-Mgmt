@@ -12,6 +12,7 @@ const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
 logger.error(
   JSON.stringify({
     service: 'auth-service',
+    requestId: req.requestId || 'N/A',
     method: req.method,
     url: req.originalUrl,
     statusCode,
