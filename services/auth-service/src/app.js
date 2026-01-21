@@ -28,12 +28,23 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
+  logger.info(
+    JSON.stringify({
+      service: 'auth-service',
+      endpoint: '/health',
+      status: 'UP',
+      method: req.method,
+      timestamp: new Date().toISOString(),
+    })
+  );
+
   res.status(200).json({
     success: true,
     message: 'Auth Service is healthy',
     timestamp: new Date().toISOString(),
   });
 });
+;
 
 // Extract user context from gateway headers
 app.use(extractUserFromHeaders);
