@@ -39,5 +39,21 @@ const logger = winston.createLogger({
   format,
   transports,
 });
+// Alert helper for critical failures
+const alertCritical = (payload) => {
+  console.error('🚨 CRITICAL ALERT 🚨', payload);
 
-module.exports = logger;
+  logger.error(
+    JSON.stringify({
+      alert: true,
+      severity: 'CRITICAL',
+      ...payload,
+    })
+  );
+};
+
+module.exports = {
+  ...logger,
+  alertCritical,
+};
+
