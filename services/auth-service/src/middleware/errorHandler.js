@@ -9,19 +9,30 @@ const { errorResponse } = require('../utils/responseFormatter');
 const errorHandler = (err, req, res, next) => {
 const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
 
-logger.error(
-  JSON.stringify({
-    service: 'auth-service',
-    requestId: req.requestId || 'N/A',
-    method: req.method,
-    url: req.originalUrl,
-    statusCode,
-    errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
-    message: err.message,
+const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
+
+const errorPayload = {
+  service: 'auth-service',
+  requestId: req.requestId || 'N/A',
+  method: req.method,
+  url: req.originalUrl,
+  statusCode,
+  errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
+  message: err.message,
+  timestamp: new Date().toISOString(),
+};
+
+// Normal error logging
+logger.error(JSON.stringify(errorPayload));
+
+// 🚨 Critical alert for server-side failures
+if (statusCode >= 500) {
+  logger.alertCritical({
+    ...errorPayload,
     stack: err.stack,
-    timestamp: new Date().toISOString(),
-  })
-);
+  });
+}
+
 
 
   // Sequelize validation error
