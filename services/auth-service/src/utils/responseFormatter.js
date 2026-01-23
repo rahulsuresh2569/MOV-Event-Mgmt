@@ -2,15 +2,18 @@ const { HTTP_STATUS } = require('../constants/httpStatus');
 
 /**
  * Standard API response formatter
- * @param {Object} res - Express response object
- * @param {Number} statusCode - HTTP status code
- * @param {String} message - Response message
- * @param {Object} data - Response data
  */
-const successResponse = (res, statusCode = HTTP_STATUS.OK, message = 'Success', data = null) => {
+const successResponse = (
+  res,
+  statusCode = HTTP_STATUS.OK,
+  message = 'Success',
+  data = null
+) => {
   const response = {
     success: true,
     message,
+    timestamp: new Date().toISOString(),
+    requestId: res.getHeader('X-Request-Id') || 'N/A',
   };
 
   if (data !== null) {
@@ -22,11 +25,6 @@ const successResponse = (res, statusCode = HTTP_STATUS.OK, message = 'Success', 
 
 /**
  * Error response formatter
- * @param {Object} res - Express response object
- * @param {Number} statusCode - HTTP status code
- * @param {String} message - Error message
- * @param {String} errorCode - Error code
- * @param {Object} errors - Validation errors
  */
 const errorResponse = (
   res,
@@ -38,6 +36,8 @@ const errorResponse = (
   const response = {
     success: false,
     message,
+    timestamp: new Date().toISOString(),
+    requestId: res.getHeader('X-Request-Id') || 'N/A',
   };
 
   if (errorCode) {
