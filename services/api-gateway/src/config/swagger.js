@@ -220,6 +220,122 @@ const swaggerDefinition = {
           },
         },
       },
+      Message: {
+        type: 'object',
+        properties: {
+          _id: {
+            type: 'string',
+            description: 'Message ID',
+            example: '507f1f77bcf86cd799439011',
+          },
+          senderId: {
+            type: 'integer',
+            description: 'ID of the user who sent the message',
+            example: 1,
+          },
+          senderName: {
+            type: 'string',
+            description: 'Name of the sender',
+            example: 'John Doe',
+          },
+          receiverId: {
+            type: 'integer',
+            description: 'ID of the recipient (for direct messages)',
+            example: 2,
+          },
+          eventId: {
+            type: 'integer',
+            description: 'ID of the event (for group messages)',
+            example: 10,
+          },
+          conversationId: {
+            type: 'string',
+            description: 'ID of the conversation',
+            example: '507f1f77bcf86cd799439011',
+          },
+          content: {
+            type: 'string',
+            description: 'Message content',
+            example: 'Hello, how are you?',
+          },
+          type: {
+            type: 'string',
+            enum: ['direct', 'group', 'system'],
+            description: 'Type of message',
+            example: 'direct',
+          },
+          read: {
+            type: 'boolean',
+            description: 'Whether the message has been read',
+            example: false,
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Message creation timestamp',
+          },
+        },
+      },
+      Conversation: {
+        type: 'object',
+        properties: {
+          _id: {
+            type: 'string',
+            description: 'Conversation ID',
+            example: '507f1f77bcf86cd799439011',
+          },
+          type: {
+            type: 'string',
+            enum: ['direct', 'group'],
+            description: 'Type of conversation',
+            example: 'direct',
+          },
+          eventId: {
+            type: 'integer',
+            description: 'Event ID (for group conversations)',
+            example: 10,
+          },
+          eventTitle: {
+            type: 'string',
+            description: 'Event title (for group conversations)',
+            example: 'Tech Conference 2025',
+          },
+          participants: {
+            type: 'array',
+            items: {
+              type: 'integer',
+            },
+            description: 'Array of participant user IDs',
+            example: [1, 2],
+          },
+          lastMessage: {
+            type: 'object',
+            properties: {
+              content: {
+                type: 'string',
+                example: 'See you at the event!',
+              },
+              senderId: {
+                type: 'integer',
+                example: 1,
+              },
+              timestamp: {
+                type: 'string',
+                format: 'date-time',
+              },
+            },
+          },
+          unreadCounts: {
+            type: 'object',
+            description: 'Map of user IDs to their unread message counts',
+          },
+          createdAt: {
+            type: 'string',
+            format: 'date-time',
+            description: 'Conversation creation timestamp',
+          },
+        },
+      },
     },
   },
   tags: [
@@ -234,6 +350,10 @@ const swaggerDefinition = {
     {
       name: 'Enrollments',
       description: 'Event enrollment and registration endpoints',
+    },
+    {
+      name: 'Chat',
+      description: 'Real-time messaging and conversation endpoints',
     },
     {
       name: 'Health',

@@ -15,6 +15,9 @@ router.get('/me', enrollmentController.getMyEnrollments);
 // Check enrollment status for an event
 router.get('/check/:eventId', enrollmentController.checkEnrollmentStatus);
 
+// Check enrollment for specific user (service-to-service call)
+router.get('/check/:eventId/:userId', enrollmentController.checkEnrollmentDirect);
+
 // Get event statistics (organizer only)
 router.get('/event/:eventId/statistics', enrollmentController.getEventStatistics);
 

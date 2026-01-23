@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MOV Chat Service Test</title>
+    <script src="https://cdn.socket.io/4.6.0/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #333; }
+        .section { margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .status { padding: 10px; border-radius: 5px; margin: 10px 0; font-weight: bold; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .chat-box { border: 1px solid #ccc; padding: 15px; height: 400px; overflow-y: auto; margin-bottom: 15px; background: #fafafa; border-radius: 5px; }
+        .message { padding: 8px 12px; margin: 5px 0; border-radius: 5px; max-width: 80%; }
+        .sent { background-color: #007bff; color: white; margin-left: auto; text-align: right; }
+        .received { background-color: #e9ecef; color: #333; }
+        .system { background-color: #fff3cd; color: #856404; font-style: italic; text-align: center; max-width: 100%; }
+        input, button { padding: 10px; margin: 5px; border: 1px solid #ddd; border-radius: 4px; }
+        input { width: 70%; font-size: 14px; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #6c757d; cursor: not-allowed; }
+        .input-group { display: flex; align-items: center; margin-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        .token-input { width: 85%; }
+        .info { background-color: #d1ecf1; color: #0c5460; padding: 10px; border-radius: 5px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 MOV Chat Service Test</h1>
+        
+        <div class="info">
+            <strong>💡 Instructions:</strong> Get your JWT token from Postman (login as organizer or participant), paste it below, and connect!
+        </div>
+        
+        <div class="section">
+            <label>🔑 JWT Token:</label>
+            <div class="input-group">
+                <input type="text" id="token" class="token-input" placeholder="Paste your JWT token here">
+                <button onclick="connect()" id="connectBtn">Connect</button>
+            </div>
+            <div id="status" class="status disconnected">⚠️ Not connected</div>
+        </div>
+        
+        <div class="section">
+            <label>🎪 Event Room Controls:</label>
+            <div class="input-group">
+                <input type="number" id="eventId" placeholder="Enter event ID" style="width: 30%;">
+                <button onclick="joinRoom()" id="joinBtn" disabled>Join Event Room</button>
+                <button onclick="leaveRoom()" id="leaveBtn" disabled>Leave Room</button>
+            </div>
+        </div>
+        
+        <div class="section">
+            <label>💬 Chat Messages:</label>
+            <div class="chat-box" id="messages"></div>
+            
+            <div class="input-group">
+                <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)" disabled>
+                <button onclick="sendGroupMessage()" id="sendGroupBtn" disabled>Send to Group</button>
+            </div>
+            
+            <div class="input-group">
+                <input type="number" id="receiverId" placeholder="Receiver User ID" style="width: 30%;">
+                <button onclick="sendDirectMessage()" id="sendDirectBtn" disabled>Send Direct Message</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let currentEventId = null;
+        let currentUserId = null; // Store current user's ID
+
+        function connect() {
+            const token = document.getElementById('token').value.trim();
+            if (!token) {
+                alert('❌ Please enter your JWT token');
+                return;
+            }
+
+            addMessage('🔄 Connecting to chat service...', 'system');
+            document.getElementById('connectBtn').disabled = true;
+
+            socket = io('http://localhost:3004', {
+                auth: { token: token },
+                transports: ['websocket', 'polling']
+            });
+
+            socket.on('connect', () => {
+                document.getElementById('status').textContent = '✅ Connected to chat service';
+                document.getElementById('status').className = 'status connected';
+                document.getElementById('connectBtn').textContent = 'Connected';
+                
+                // Decode token to get user ID
+                const token = document.getElementById('token').value.trim();
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    currentUserId = payload.userId;
+                    console.log('👤 Current User ID:', currentUserId);
+                } catch (error) {
+                    console.error('Error decoding token:', error);
+                }
+                
+                // Enable buttons
+                document.getElementById('joinBtn').disabled = false;
+                document.getElementById('leaveBtn').disabled = false;
+                document.getElementById('sendDirectBtn').disabled = false;
+                
+                addMessage('✅ Successfully connected! You can now join event rooms.', 'system');
+            });
+
+            socket.on('connect_error', (error) => {
+                addMessage('❌ Connection error: ' + error.message, 'system');
+                document.getElementById('status').textContent = '❌ Connection failed';
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('connectBtn').textContent = 'Connect';
+            });
+
+            socket.on('disconnect', (reason) => {
+                document.getElementById('status').textContent = '⚠️ Disconnected: ' + reason;
+                document.getElementById('status').className = 'status disconnected';
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('connectBtn').textContent = 'Reconnect';
+                
+                // Disable buttons
+                document.getElementById('joinBtn').disabled = true;
+                document.getElementById('leaveBtn').disabled = true;
+                document.getElementById('messageInput').disabled = true;
+                document.getElementById('sendGroupBtn').disabled = true;
+                document.getElementById('sendDirectBtn').disabled = true;
+                
+                addMessage('⚠️ Disconnected from chat service', 'system');
+            });
+
+            socket.on('error', (data) => {
+                addMessage('❌ ERROR: ' + data.message, 'system');
+            });
+
+            socket.on('message-received', (data) => {
+                // Don't display our own messages again (already shown when sent)
+                if (data.senderId === currentUserId) {
+                    console.log('Ignoring own message:', data);
+                    return;
+                }
+                
+                const sender = data.senderEmail || `User ${data.senderId}`;
+                
+                // Check if it's a direct message to us
+                if (data.type === 'direct') {
+                    addMessage(`📬 DM from ${sender}: ${data.content}`, 'received');
+                } else {
+                    // Group message
+                    addMessage(`${sender}: ${data.content}`, 'received');
+                }
+            });
+
+            socket.on('user-joined', (data) => {
+                addMessage(`👋 ${data.userEmail} (${data.userRole}) joined the chat`, 'system');
+            });
+
+            socket.on('user-left', (data) => {
+                addMessage(`👋 ${data.userEmail} left the chat`, 'system');
+            });
+
+            socket.on('joined-event-room', (data) => {
+                addMessage(`✅ Joined event room #${data.eventId}`, 'system');
+                currentEventId = data.eventId;
+                document.getElementById('messageInput').disabled = false;
+                document.getElementById('sendGroupBtn').disabled = false;
+            });
+
+            socket.on('left-event-room', (data) => {
+                addMessage(`📤 Left event room #${data.eventId}`, 'system');
+                currentEventId = null;
+                document.getElementById('messageInput').disabled = true;
+                document.getElementById('sendGroupBtn').disabled = true;
+            });
+
+            socket.on('typing-indicator', (data) => {
+                if (data.typing) {
+                    addMessage(`⌨️ ${data.userEmail} is typing...`, 'system');
+                }
+            });
+
+            socket.on('message-sent', (data) => {
+                console.log('✅ Message sent successfully', data);
+            });
+        }
+
+        function joinRoom() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            const eventId = parseInt(document.getElementById('eventId').value);
+            if (!eventId || eventId <= 0) {
+                alert('❌ Please enter a valid event ID');
+                return;
+            }
+            socket.emit('join-event-room', { eventId: eventId });
+            addMessage(`🔄 Joining event room #${eventId}...`, 'system');
+        }
+
+        function leaveRoom() {
+            if (!socket || !socket.connected) {
+                alert('❌ Not connected');
+                return;
+            }
+            if (!currentEventId) {
+                alert('❌ Not in a room');
+                return;
+            }
+            socket.emit('leave-event-room', { eventId: currentEventId });
+        }
+
+        function sendGroupMessage() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            if (!currentEventId) {
+                alert('❌ Please join an event room first');
+                return;
+            }
+            const content = document.getElementById('messageInput').value.trim();
+            if (!content) return;
+
+            socket.emit('send-group-message', {
+                eventId: currentEventId,
+                content: content
+            });
+
+            addMessage(`You: ${content}`, 'sent');
+            document.getElementById('messageInput').value = '';
+        }
+
+        function sendDirectMessage() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            const receiverId = parseInt(document.getElementById('receiverId').value);
+            const content = document.getElementById('messageInput').value.trim();
+            if (!receiverId || receiverId <= 0 || !content) {
+                alert('❌ Please enter receiver ID and message');
+                return;
+            }
+
+            socket.emit('send-direct-message', {
+                receiverId: receiverId,
+                content: content
+            });
+
+            addMessage(`📨 Direct to User #${receiverId}: ${content}`, 'sent');
+            document.getElementById('messageInput').value = '';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendGroupMessage();
+            }
+        }
+
+        function addMessage(text, type) {
+            const messagesDiv = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + type;
+            
+            const time = new Date().toLocaleTimeString();
+            messageDiv.textContent = `[${time}] ${text}`;
+            
+            messagesDiv.appendChild(messageDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Auto-scroll to bottom
+        window.addEventListener('load', () => {
+            addMessage('👋 Welcome! Enter your JWT token and connect to start chatting.', 'system');
+        });
+    </script>
+</body>
+</html>
