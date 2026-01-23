@@ -418,7 +418,7 @@ app.get(
  *               - title
  *               - category
  *               - location
- *               - date
+ *               - startDate
  *               - maxParticipants
  *             properties:
  *               title:
@@ -438,11 +438,16 @@ app.get(
  *                 type: string
  *                 maxLength: 255
  *                 example: Berlin Convention Center
- *               date:
+ *               startDate:
  *                 type: string
  *                 format: date-time
- *                 description: Event date and time (must be in the future)
+ *                 description: Event start date and time (must be in the future)
  *                 example: 2025-03-15T09:00:00.000Z
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Event end date and time (optional, must be after start date). Required for automatic state transitions.
+ *                 example: 2025-03-15T17:00:00.000Z
  *               maxParticipants:
  *                 type: integer
  *                 minimum: 1
@@ -507,10 +512,14 @@ app.get(
  *               description:
  *                 type: string
  *                 maxLength: 1000
- *               date:
+ *               startDate:
  *                 type: string
  *                 format: date-time
- *                 description: Event date (must be in the future)
+ *                 description: Event start date (must be in the future)
+ *               endDate:
+ *                 type: string
+ *                 format: date-time
+ *                 description: Event end date (optional, must be after start date)
  *               location:
  *                 type: string
  *                 maxLength: 255

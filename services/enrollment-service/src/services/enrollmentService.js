@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { Transaction } = require('sequelize');
 const Enrollment = require('../models/Enrollment');
 const logger = require('../utils/logger');
 const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
@@ -51,10 +52,14 @@ class EnrollmentService {
 
   /**
    * Enroll user in an event
+   * Uses row-level locking and atomic transactions to prevent race conditions
+   * and ensure enrollment + capacity update happen together
    */
   async enrollInEvent(eventId, userId, userRole) {
     const { sequelize } = require('../config/database');
-    const transaction = await sequelize.transaction();
+    const transaction = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+    });
 
     try {
       // 1. Check if user is a participant (organizers cannot enroll)
@@ -89,11 +94,13 @@ class EnrollmentService {
       }
 
       // 5. Check if user already has an enrollment (active or canceled)
+      // LOCK: Acquire row-level lock to prevent concurrent enrollments
       const existingEnrollment = await Enrollment.findOne({
         where: {
           userId,
           eventId,
         },
+        lock: Transaction.LOCK.UPDATE,
         transaction,
       });
 
@@ -110,11 +117,22 @@ class EnrollmentService {
           existingEnrollment.enrolledAt = new Date();
           await existingEnrollment.save({ transaction });
           
+          // ATOMIC: Update event participant count BEFORE committing transaction
+          // If this fails, the entire enrollment will be rolled back
+          try {
+            await axios.patch(`${process.env.EVENT_SERVICE_URL}/${eventId}/participants`, {
+              increment: true,
+            });
+            logger.info(`Event ${eventId} participant count incremented`);
+          } catch (error) {
+            logger.error(`Failed to update participant count: ${error.message}`);
+            const err = new Error('Failed to update event capacity. Enrollment rolled back.');
+            err.statusCode = HTTP_STATUS.SERVICE_UNAVAILABLE;
+            err.errorCode = ERROR_CODES.EXTERNAL_SERVICE_ERROR;
+            throw err;
+          }
+          
           await transaction.commit();
-          
-          // Update event participant count (outside transaction)
-          await this.updateEventParticipantCount(eventId, true);
-          
           logger.info(`User ${userId} re-enrolled in event ${eventId}`);
           return existingEnrollment;
         }
@@ -131,11 +149,23 @@ class EnrollmentService {
         { transaction }
       );
 
-      // Commit transaction
-      await transaction.commit();
+      // 7. ATOMIC: Update event participant count BEFORE committing transaction
+      // This ensures enrollment and capacity update are atomic (all-or-nothing)
+      try {
+        await axios.patch(`${process.env.EVENT_SERVICE_URL}/${eventId}/participants`, {
+          increment: true,
+        });
+        logger.info(`Event ${eventId} participant count incremented`);
+      } catch (error) {
+        logger.error(`Failed to update participant count: ${error.message}`);
+        const err = new Error('Failed to update event capacity. Enrollment rolled back.');
+        err.statusCode = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        err.errorCode = ERROR_CODES.EXTERNAL_SERVICE_ERROR;
+        throw err;
+      }
 
-      // 7. Update event participant count (outside transaction, non-critical)
-      await this.updateEventParticipantCount(eventId, true);
+      // 8. Commit transaction (only if both enrollment and capacity update succeeded)
+      await transaction.commit();
 
       logger.info(`User ${userId} enrolled in event ${eventId}`);
       return enrollment;
@@ -149,8 +179,14 @@ class EnrollmentService {
 
   /**
    * Unenroll user from an event
+   * Uses atomic transaction to ensure unenrollment + capacity update happen together
    */
   async unenrollFromEvent(eventId, userId, userRole) {
+    const { sequelize } = require('../config/database');
+    const transaction = await sequelize.transaction({
+      isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+    });
+
     try {
       // 1. Check if user is a participant (organizers cannot unenroll)
       if (userRole && userRole.toUpperCase() === 'ORGANIZER') {
@@ -175,13 +211,15 @@ class EnrollmentService {
         throw error;
       }
 
-      // 4. Find active enrollment
+      // 4. Find active enrollment with row-level lock
       const enrollment = await Enrollment.findOne({
         where: {
           userId,
           eventId,
           status: ENROLLMENT_STATUS.ACTIVE,
         },
+        lock: Transaction.LOCK.UPDATE,
+        transaction,
       });
 
       if (!enrollment) {
@@ -193,14 +231,27 @@ class EnrollmentService {
 
       // 5. Cancel enrollment (soft delete)
       enrollment.status = ENROLLMENT_STATUS.CANCELED;
-      await enrollment.save();
+      await enrollment.save({ transaction });
 
-      // 6. Update event participant count
-      await this.updateEventParticipantCount(eventId, false);
+      // 6. ATOMIC: Update event participant count BEFORE committing transaction
+      try {
+        await axios.patch(`${process.env.EVENT_SERVICE_URL}/${eventId}/participants`, {
+          increment: false,
+        });
+        logger.info(`Event ${eventId} participant count decremented`);
+      } catch (error) {
+        logger.error(`Failed to update participant count: ${error.message}`);
+        const err = new Error('Failed to update event capacity. Unenrollment rolled back.');
+        err.statusCode = HTTP_STATUS.SERVICE_UNAVAILABLE;
+        err.errorCode = ERROR_CODES.EXTERNAL_SERVICE_ERROR;
+        throw err;
+      }
 
+      await transaction.commit();
       logger.info(`User ${userId} unenrolled from event ${eventId}`);
       return enrollment;
     } catch (error) {
+      await transaction.rollback();
       logger.error(`Error unenrolling from event: ${error.message}`);
       throw error;
     }
