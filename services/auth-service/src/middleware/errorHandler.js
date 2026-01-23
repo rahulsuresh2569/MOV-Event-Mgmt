@@ -7,33 +7,32 @@ const { errorResponse } = require('../utils/responseFormatter');
  * Catches all errors and sends standardized error responses
  */
 const errorHandler = (err, req, res, next) => {
-const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
+  const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
 
-const statusCode = err.statusCode || HTTP_STATUS.INTERNAL_SERVER_ERROR;
-
-const errorPayload = {
-  service: 'auth-service',
-  requestId: req.requestId || 'N/A',
-  method: req.method,
-  url: req.originalUrl,
-  statusCode,
-  errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
-  message: err.message,
-  timestamp: new Date().toISOString(),
-};
-
-// Normal error logging
-logger.error(JSON.stringify(errorPayload));
-
-// 🚨 Critical alert for server-side failures
-if (statusCode >= 500) {
-  logger.alertCritical({
-    ...errorPayload,
+  const errorPayload = {
+    service: 'auth-service',
+    requestId: req.requestId || 'N/A',
+    method: req.method,
+    url: req.originalUrl,
+    statusCode,
+    errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
+    message: err.message,
     stack: err.stack,
-  });
-}
+    timestamp: new Date().toISOString(),
+  };
 
+  // Normal error log (goes to console + error.log + all.log)
+  logger.error(JSON.stringify(errorPayload));
 
+  // 🚨 Critical failure alert (5xx) — will also be written into alerts.log
+  if (statusCode >= 500) {
+    logger.error(
+      JSON.stringify({
+        ...errorPayload,
+        alert: true,
+      })
+    );
+  }
 
   // Sequelize validation error
   if (err.name === 'SequelizeValidationError') {
