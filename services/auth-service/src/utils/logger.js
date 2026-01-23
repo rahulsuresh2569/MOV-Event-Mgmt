@@ -26,12 +26,23 @@ const format = winston.format.combine(
 
 const transports = [
   new winston.transports.Console(),
+
+  // ONLY errors
   new winston.transports.File({
     filename: 'logs/error.log',
     level: 'error',
   }),
+
+  // ALL logs (info + warn + error etc.)
   new winston.transports.File({ filename: 'logs/all.log' }),
+
+  // ALERTS for critical failures (we will write here for 5xx)
+  new winston.transports.File({
+    filename: 'logs/alerts.log',
+    level: 'error',
+  }),
 ];
+
 
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
