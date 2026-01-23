@@ -10,7 +10,16 @@ const authRoutes = require('./routes/authRoutes');
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// Trust proxy (important when behind gateway / docker / load balancer)
+app.set('trust proxy', true);
+
 
 // CORS configuration
 const corsOptions = {
