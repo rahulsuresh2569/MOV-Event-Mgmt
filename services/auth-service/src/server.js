@@ -3,7 +3,21 @@ const app = require('./app');
 const { sequelize, testConnection } = require('./config/database');
 const logger = require('./utils/logger');
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3001;
+
+// CRITICAL alerting for runtime crashes
+process.on('uncaughtException', (error) => {
+  logger.error('CRITICAL: Uncaught Exception', {
+    message: error.message,
+    stack: error.stack,
+  });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('CRITICAL: Unhandled Promise Rejection', { reason });
+  process.exit(1);
+});
 
 const startServer = async () => {
   try {
@@ -32,7 +46,10 @@ const startServer = async () => {
       });
     });
   } catch (error) {
-    logger.error(`Failed to start server: ${error.message}`);
+    logger.error('CRITICAL: Failed to start auth-service', {
+      message: error.message,
+      stack: error.stack,
+    });
     process.exit(1);
   }
 };
