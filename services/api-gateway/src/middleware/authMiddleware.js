@@ -9,14 +9,16 @@ const { errorResponse } = require('../utils/responseFormatter');
 const revokedTokens = new Map(); // token -> expiresAtMs
 
 const cleanupRevoked = () => {
+  if (revokedTokens.size === 0) return;
+
   const now = Date.now();
   for (const [token, expMs] of revokedTokens.entries()) {
     if (!expMs || expMs <= now) revokedTokens.delete(token);
   }
 };
 
-// Clean up occasionally
-setInterval(cleanupRevoked, 60 * 1000).unref();
+// Clean up every minute (safe for Docker / Node)
+setInterval(cleanupRevoked, 60 * 1000);
 
 /**
  * Extract Bearer token safely
@@ -48,6 +50,7 @@ const revokeToken = (token) => {
 const isTokenRevoked = (token) => {
   const expMs = revokedTokens.get(token);
   if (!expMs) return false;
+
   if (Date.now() >= expMs) {
     revokedTokens.delete(token);
     return false;
@@ -72,7 +75,7 @@ const verifyToken = (req, res, next) => {
       );
     }
 
-    // ✅ Secure Logout check
+    // ✅ Secure Logout check (blacklist)
     if (isTokenRevoked(token)) {
       return errorResponse(
         res,
@@ -90,7 +93,7 @@ const verifyToken = (req, res, next) => {
       role: decoded.role,
     };
 
-    // (optional) expose token if you need it later
+    // Keep token if needed in other middleware
     req.token = token;
 
     next();
@@ -139,7 +142,8 @@ const requireRole = (allowedRoles) => (req, res, next) => {
 };
 
 /**
- * Optional auth (does not fail)
+ * Optional authentication middleware
+ * Extracts user info if token is present, but doesn't fail if missing/invalid/revoked
  */
 const optionalAuth = (req, res, next) => {
   try {
@@ -185,4 +189,3 @@ module.exports = {
   revokeToken,
   isTokenRevoked,
 };
-
