@@ -8,7 +8,8 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const logger = require('./utils/logger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
-const { verifyToken, requireRole, optionalAuth, forwardUserContext } = require('./middleware/authMiddleware');
+const { verifyToken, requireRole, optionalAuth, forwardUserContext, revokeToken } = require('./middleware/authMiddleware');
+
 
 const app = express();
 
@@ -842,6 +843,18 @@ app.use(
     ...proxyOptions,
   })
 );
+// Secure Logout (revokes token in API Gateway)
+app.post('/api/v1/auth/logout', verifyToken, (req, res) => {
+  // req.token is set in verifyToken middleware
+  revokeToken(req.token);
+
+  res.status(200).json({
+    success: true,
+    message: 'Logged out successfully',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 
 // 404 handler
 app.use(notFoundHandler);
