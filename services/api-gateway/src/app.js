@@ -1042,11 +1042,11 @@ app.use(
  * @swagger
  * /api/v1/chat/messages/mark-read:
  *   post:
- *     summary: Mark messages as read
+ *     summary: Mark all messages in a conversation as read
  *     tags: [Chat]
  *     security:
  *       - bearerAuth: []
- *     description: Mark one or more messages as read by the authenticated user
+ *     description: Mark all unread messages in a conversation as read for the authenticated user
  *     requestBody:
  *       required: true
  *       content:
@@ -1054,14 +1054,12 @@ app.use(
  *           schema:
  *             type: object
  *             required:
- *               - messageIds
+ *               - conversationId
  *             properties:
- *               messageIds:
- *                 type: array
- *                 items:
- *                   type: string
- *                 description: Array of message IDs to mark as read
- *                 example: ["507f1f77bcf86cd799439011", "507f1f77bcf86cd799439012"]
+ *               conversationId:
+ *                 type: string
+ *                 description: MongoDB ObjectId of the conversation
+ *                 example: "507f1f77bcf86cd799439011"
  *     responses:
  *       200:
  *         description: Messages marked as read successfully
@@ -1079,14 +1077,16 @@ app.use(
  *                 data:
  *                   type: object
  *                   properties:
- *                     modifiedCount:
+ *                     markedCount:
  *                       type: integer
- *                       example: 2
+ *                       description: Number of messages marked as read
+ *                       example: 5
  *       400:
- *         description: Bad request - Invalid messageIds
+ *         description: Bad request - Conversation ID is required
  *       401:
  *         description: Unauthorized
- */
+ *       404:
+ *         description: Conversation not found
 
 // All chat routes require authentication
 app.use(

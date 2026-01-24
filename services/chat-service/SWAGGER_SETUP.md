@@ -175,6 +175,6 @@ All endpoints can be tested directly from the Swagger UI:
 
 - WebSocket connections require Socket.IO client library (not standard WebSocket)
 - All REST endpoints require JWT authentication
-- WebSocket authentication uses token in connection query: `?token=YOUR_JWT`
-- Pagination is supported on message retrieval endpoints
+- WebSocket authentication uses the Socket.IO auth payload (for example: `io("https://chat.example.com", { auth: { token: "YOUR_JWT" } })`)
+- Pagination uses cursor-based approach with `before` parameter for real-time message retrieval
 - All timestamps are in ISO 8601 format

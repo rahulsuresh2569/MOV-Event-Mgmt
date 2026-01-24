@@ -70,8 +70,9 @@ router.get('/events/:eventId/inquiries', async (req, res) => {
     const eventId = parseInt(req.params.eventId);
 
     // Verify user is organizer of this event
-    const eventResponse = await axios.get(`http://event-service:3002/api/v1/events/${eventId}`);
-    const event = eventResponse.data.data;
+    // Event service routes are at root level, not /api/v1/events
+    const eventResponse = await axios.get(`${process.env.EVENT_SERVICE_URL}/${eventId}`);
+    const event = eventResponse.data.data.event;
 
     if (!event || event.organizerId !== req.user.id) {
       return res.status(403).json({
@@ -152,8 +153,9 @@ router.post('/events/:eventId/inquiries', async (req, res) => {
     }
 
     // Fetch event details
-    const eventResponse = await axios.get(`http://event-service:3002/api/v1/events/${eventId}`);
-    const event = eventResponse.data.data;
+    // Event service routes are at root level, not /api/v1/events
+    const eventResponse = await axios.get(`${process.env.EVENT_SERVICE_URL}/${eventId}`);
+    const event = eventResponse.data.data.event;
 
     if (!event) {
       return res.status(404).json({
@@ -163,7 +165,8 @@ router.post('/events/:eventId/inquiries', async (req, res) => {
     }
 
     // Only allow inquiries for published events
-    if (event.status !== 'PUBLISHED') {
+    // Use case-insensitive comparison since event-service stores "Published" (title case)
+    if (event.status?.toUpperCase() !== 'PUBLISHED') {
       return res.status(400).json({
         success: false,
         message: 'This event is not open for inquiries',

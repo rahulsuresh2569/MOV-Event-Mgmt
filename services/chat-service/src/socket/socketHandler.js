@@ -152,8 +152,9 @@ const setupSocketHandlers = (io) => {
           return socket.emit('error', { message: 'Conversation not found' });
         }
 
-        // Get event details for message
-        const event = await getEventDetails(eventId);
+        // Use cached event title from conversation (no need to fetch event details every message)
+        // Event title is already stored when conversation was created in join-event-room
+        const eventTitle = conversation.eventTitle || 'Event Chat';
 
         // Create message
         const message = await Message.create({
@@ -161,7 +162,7 @@ const setupSocketHandlers = (io) => {
           senderEmail: socket.user.email,
           senderRole: socket.user.role,
           eventId,
-          eventTitle: event?.title || 'Event Chat',
+          eventTitle: eventTitle,
           content,
           type: MESSAGE_TYPES.GROUP,
           conversationId: conversation._id,
