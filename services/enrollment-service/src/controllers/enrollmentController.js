@@ -116,6 +116,33 @@ class EnrollmentController {
   }
 
   /**
+   * Check enrollment for specific user (service-to-service call)
+   * GET /check/:eventId/:userId
+   */
+  async checkEnrollmentDirect(req, res, next) {
+    try {
+      const eventId = parseInt(req.params.eventId, 10);
+      const userId = parseInt(req.params.userId, 10);
+
+      if (!eventId || eventId <= 0 || !userId || userId <= 0) {
+        const error = new Error('Invalid event ID or user ID');
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
+      }
+
+      const isEnrolled = await enrollmentService.isUserEnrolled(eventId, userId);
+
+      return successResponse(res, HTTP_STATUS.OK, 'Enrollment status checked', {
+        enrolled: isEnrolled,
+        eventId,
+        userId,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * Get event statistics
    * GET /event/:eventId/statistics
    */

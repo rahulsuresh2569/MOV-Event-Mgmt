@@ -71,6 +71,34 @@ class AuthController {
       next(error);
     }
   }
+
+  /**
+   * Get user by ID (for service-to-service calls)
+   * GET /users/:id
+   */
+  async getUserByIdPublic(req, res, next) {
+    try {
+      const userId = parseInt(req.params.id, 10);
+      
+      if (!userId || userId <= 0) {
+        const error = new Error('Invalid user ID');
+        error.statusCode = HTTP_STATUS.BAD_REQUEST;
+        throw error;
+      }
+
+      const user = await authService.getUserById(userId);
+
+      if (!user) {
+        const error = new Error('User not found');
+        error.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw error;
+      }
+
+      return successResponse(res, HTTP_STATUS.OK, 'User retrieved successfully', { user });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new AuthController();

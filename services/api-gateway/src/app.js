@@ -820,6 +820,355 @@ app.use(
 );
 
 // ============= CHAT SERVICE ROUTES =============
+
+/**
+ * @swagger
+ * tags:
+ *   - name: WebSocket (Socket.IO)
+ *     description: |
+ *       ## Real-Time Communication via Socket.IO
+ *       
+ *       **Important:** Socket.IO connections are NOT REST API endpoints and cannot be tested with curl or Postman.
+ *       
+ *       ### Connection Information
+ *       - **URL**: `ws://localhost:3004` (development) or `wss://your-domain.com/chat` (production)
+ *       - **Protocol**: WebSocket with Socket.IO v4.6.0
+ *       - **Authentication**: JWT token in auth payload (not URL query string)
+ *       
+ *       ### How to Connect (JavaScript)
+ *       ```javascript
+ *       import io from 'socket.io-client';
+ *       
+ *       const socket = io('http://localhost:3004', {
+ *         auth: { token: 'YOUR_JWT_TOKEN' },
+ *         transports: ['websocket', 'polling']
+ *       });
+ *       
+ *       socket.on('connect', () => {
+ *         console.log('✅ Connected to chat service');
+ *       });
+ *       
+ *       socket.on('connect_error', (error) => {
+ *         console.error('❌ Connection failed:', error.message);
+ *       });
+ *       ```
+ *       
+ *       ### Available Socket.IO Features
+ *       - **Event-based group chat** - Real-time messaging within event rooms
+ *       - **Direct messaging** - Private messages between users in same event
+ *       - **Pre-enrollment inquiries** - Questions to organizers before enrolling
+ *       - **Real-time notifications** - Instant delivery of messages and updates
+ *       - **Typing indicators** - Show when users are typing
+ *       - **Presence tracking** - User join/leave notifications
+ *       
+ *       ### Socket Events (Emit)
+ *       - `join-event-room` - Join an event's chat room
+ *       - `leave-event-room` - Leave an event's chat room
+ *       - `send-group-message` - Send message to all room participants
+ *       - `send-direct-message` - Send private message to specific user
+ *       - `send-inquiry` - Send pre-enrollment inquiry to organizer
+ *       - `reply-inquiry` - Reply to inquiry (organizer only)
+ *       - `get-my-inquiries` - Get user's inquiry history
+ *       - `get-event-inquiries` - Get event inquiries (organizer only)
+ *       
+ *       ### Socket Events (Listen)
+ *       - `connect` - Successfully connected to server
+ *       - `disconnect` - Disconnected from server
+ *       - `error` - Error occurred
+ *       - `message-received` - New message received
+ *       - `user-joined` - User joined the chat room
+ *       - `user-left` - User left the chat room
+ *       - `inquiry-received` - New inquiry received (organizer)
+ *       - `inquiry-replied` - Reply received to your inquiry
+ *       - `typing-indicator` - User is typing
+ *       
+ *       ### Testing WebSocket Connections
+ *       - ✅ **Interactive test client**: Open `chat-test.html` in your browser
+ *       - ✅ **Full Socket.IO API docs**: Visit `http://localhost:3004/api-docs`
+ *       - ✅ **Health check**: `curl http://localhost:3004/health`
+ *       - ❌ **Cannot use curl/Postman** for WebSocket testing
+ *       
+ *       ### Important Notes
+ *       - ⚠️ Socket.IO connections **bypass the API Gateway** and connect directly to chat-service
+ *       - ⚠️ **Not a REST API** - use Socket.IO client library (JavaScript, Python, Java, etc.)
+ *       - ⚠️ Authentication uses **auth payload**, not URL query string (security best practice)
+ *       - ✅ For REST-based chat operations, use `/api/v1/chat/*` endpoints below
+ *       
+ *       ### Security
+ *       - All WebSocket connections require valid JWT authentication
+ *       - Users can only access events they're enrolled in or organize
+ *       - Direct messages require both users to be in the same event
+ *       - Cross-event message access is prevented
+ */
+
+/**
+ * @swagger
+ * /api/v1/chat/conversations:
+ *   get:
+ *     summary: Get user's conversations
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Retrieve all conversations for the authenticated user (both direct and group conversations)
+ *     responses:
+ *       200:
+ *         description: List of conversations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Conversations retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     conversations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Conversation'
+ *                     totalCount:
+ *                       type: integer
+ *                       example: 5
+ *       401:
+ *         description: Unauthorized - Invalid or missing token
+ */
+
+/**
+ * @swagger
+ * /api/v1/chat/conversations/direct/{userId}:
+ *   get:
+ *     summary: Get direct conversation with specific user
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Get or create a direct conversation between authenticated user and another user
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID of the other user
+ *         example: 2
+ *     responses:
+ *       200:
+ *         description: Direct conversation retrieved or created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Direct conversation retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     conversation:
+ *                       $ref: '#/components/schemas/Conversation'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+
+/**
+ * @swagger
+ * /api/v1/chat/conversations/{id}/messages:
+ *   get:
+ *     summary: Get messages for a conversation
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Retrieve all messages for a specific conversation with pagination
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Conversation ID
+ *         example: 507f1f77bcf86cd799439011
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of messages per page
+ *     responses:
+ *       200:
+ *         description: Messages retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Messages retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     messages:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Message'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalMessages:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User not part of this conversation
+ *       404:
+ *         description: Conversation not found
+ */
+
+/**
+ * @swagger
+ * /api/v1/chat/events/{eventId}/messages:
+ *   get:
+ *     summary: Get event group chat messages
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Retrieve all messages for an event group chat (requires user to be organizer or enrolled participant)
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Event ID
+ *         example: 10
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: Number of messages per page
+ *     responses:
+ *       200:
+ *         description: Event messages retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Event messages retrieved successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     messages:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Message'
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalMessages:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Forbidden - User not authorized to view these messages
+ *       404:
+ *         description: Event not found
+ */
+
+/**
+ * @swagger
+ * /api/v1/chat/messages/mark-read:
+ *   post:
+ *     summary: Mark all messages in a conversation as read
+ *     tags: [Chat]
+ *     security:
+ *       - bearerAuth: []
+ *     description: Mark all unread messages in a conversation as read for the authenticated user
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - conversationId
+ *             properties:
+ *               conversationId:
+ *                 type: string
+ *                 description: MongoDB ObjectId of the conversation
+ *                 example: "507f1f77bcf86cd799439011"
+ *     responses:
+ *       200:
+ *         description: Messages marked as read successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Messages marked as read
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     markedCount:
+ *                       type: integer
+ *                       description: Number of messages marked as read
+ *                       example: 5
+ *       400:
+ *         description: Bad request - Conversation ID is required
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Conversation not found
+ */
+
 // All chat routes require authentication
 app.use(
   '/api/v1/chat',

@@ -9,4 +9,7 @@ router.post('/login', authController.login);
 router.get('/me', authController.getProfile);
 router.get('/verify', authController.verifyToken);
 
+// Get user by ID (for service-to-service calls)
+router.get('/users/:id', authController.getUserByIdPublic);
+
 module.exports = router;
