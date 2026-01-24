@@ -3,14 +3,67 @@ const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 const { errorResponse } = require('../utils/responseFormatter');
 
 /**
+ * In-memory token blacklist (revoked tokens)
+ * NOTE: Clears if API Gateway restarts. (Good for demo/marks; persistent version needs Redis.)
+ */
+const revokedTokens = new Map(); // token -> expiresAtMs
+
+const cleanupRevoked = () => {
+  const now = Date.now();
+  for (const [token, expMs] of revokedTokens.entries()) {
+    if (!expMs || expMs <= now) revokedTokens.delete(token);
+  }
+};
+
+// Clean up occasionally
+setInterval(cleanupRevoked, 60 * 1000).unref();
+
+/**
+ * Extract Bearer token safely
+ */
+const getBearerToken = (req) => {
+  const authHeader = req.headers.authorization || '';
+  if (!authHeader.startsWith('Bearer ')) return null;
+  return authHeader.slice(7).trim();
+};
+
+/**
+ * Revoke token until its JWT expiry
+ */
+const revokeToken = (token) => {
+  try {
+    const decoded = jwt.decode(token);
+    // decoded.exp is in seconds
+    const expMs = decoded?.exp ? decoded.exp * 1000 : Date.now() + 60 * 60 * 1000;
+    revokedTokens.set(token, expMs);
+  } catch (e) {
+    // fallback: revoke for 1 hour
+    revokedTokens.set(token, Date.now() + 60 * 60 * 1000);
+  }
+};
+
+/**
+ * Check if token is revoked
+ */
+const isTokenRevoked = (token) => {
+  const expMs = revokedTokens.get(token);
+  if (!expMs) return false;
+  if (Date.now() >= expMs) {
+    revokedTokens.delete(token);
+    return false;
+  }
+  return true;
+};
+
+/**
  * Middleware to verify JWT token
  * Expects token in Authorization header: Bearer <token>
  */
 const verifyToken = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getBearerToken(req);
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!token) {
       return errorResponse(
         res,
         HTTP_STATUS.UNAUTHORIZED,
@@ -19,16 +72,26 @@ const verifyToken = (req, res, next) => {
       );
     }
 
-    const token = authHeader.substring(7); // Remove 'Bearer ' prefix
+    // ✅ Secure Logout check
+    if (isTokenRevoked(token)) {
+      return errorResponse(
+        res,
+        HTTP_STATUS.UNAUTHORIZED,
+        'Token revoked (logged out)',
+        ERROR_CODES.AUTHENTICATION_ERROR
+      );
+    }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Attach user info to request object
     req.user = {
       id: decoded.userId,
       email: decoded.email,
       role: decoded.role,
     };
+
+    // (optional) expose token if you need it later
+    req.token = token;
 
     next();
   } catch (error) {
@@ -52,7 +115,6 @@ const verifyToken = (req, res, next) => {
 
 /**
  * Middleware to check if user has required role
- * @param {Array} allowedRoles - Array of allowed roles
  */
 const requireRole = (allowedRoles) => (req, res, next) => {
   if (!req.user) {
@@ -77,58 +139,40 @@ const requireRole = (allowedRoles) => (req, res, next) => {
 };
 
 /**
- * Optional authentication middleware
- * Extracts user info if token is present, but doesn't fail if missing
- * Used for public routes that benefit from user context when available
+ * Optional auth (does not fail)
  */
 const optionalAuth = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
+    const token = getBearerToken(req);
 
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-      
+    if (token && !isTokenRevoked(token)) {
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // Attach user info to request object
         req.user = {
           id: decoded.userId,
           email: decoded.email,
           role: decoded.role,
         };
-      } catch (error) {
-        // Invalid or expired token - continue without user context
-        // Don't throw error, just log and proceed as unauthenticated
-        console.log('[API Gateway] Invalid token in optional auth, proceeding as unauthenticated');
+      } catch (e) {
+        // ignore invalid token
       }
     }
 
-    // Always proceed to next middleware
     next();
   } catch (error) {
-    // Should never reach here, but ensure we don't break the request
     next();
   }
 };
 
 /**
- * Middleware to forward user context to backend services
- * Adds custom headers with user info for backend to use
+ * Forward user context to backend services
  */
 const forwardUserContext = (proxyReq, req, res) => {
   if (req.user) {
-    // Only log for authenticated requests
-    console.log('[API Gateway] Forwarding user context:', {
-      userId: req.user.id,
-      role: req.user.role
-    });
-    
     proxyReq.setHeader('X-User-Id', req.user.id);
     proxyReq.setHeader('X-User-Email', req.user.email);
     proxyReq.setHeader('X-User-Role', req.user.role);
   }
-  // No logging for public routes (req.user undefined is expected)
 };
 
 module.exports = {
@@ -136,4 +180,9 @@ module.exports = {
   requireRole,
   optionalAuth,
   forwardUserContext,
+
+  // ✅ Export these for logout route
+  revokeToken,
+  isTokenRevoked,
 };
+
