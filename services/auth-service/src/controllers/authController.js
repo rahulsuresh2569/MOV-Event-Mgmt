@@ -10,7 +10,6 @@ class AuthController {
    */
   async register(req, res, next) {
     try {
-      // Validate request body
       const { error, value } = registerSchema.validate(req.body);
       if (error) {
         error.isJoi = true;
@@ -19,7 +18,12 @@ class AuthController {
 
       const user = await authService.register(value);
 
-      return successResponse(res, HTTP_STATUS.CREATED, 'User registered successfully', { user });
+      return successResponse(
+        res,
+        HTTP_STATUS.CREATED,
+        'User registered successfully',
+        { user }
+      );
     } catch (error) {
       next(error);
     }
@@ -31,7 +35,6 @@ class AuthController {
    */
   async login(req, res, next) {
     try {
-      // Validate request body
       const { error, value } = loginSchema.validate(req.body);
       if (error) {
         error.isJoi = true;
@@ -40,7 +43,12 @@ class AuthController {
 
       const result = await authService.login(value.email, value.password);
 
-      return successResponse(res, HTTP_STATUS.OK, 'Login successful', result);
+      return successResponse(
+        res,
+        HTTP_STATUS.OK,
+        'Login successful',
+        result
+      );
     } catch (error) {
       next(error);
     }
@@ -54,7 +62,12 @@ class AuthController {
     try {
       const user = await authService.getUserById(req.user.id);
 
-      return successResponse(res, HTTP_STATUS.OK, 'Profile retrieved successfully', { user });
+      return successResponse(
+        res,
+        HTTP_STATUS.OK,
+        'Profile retrieved successfully',
+        { user }
+      );
     } catch (error) {
       next(error);
     }
@@ -66,7 +79,37 @@ class AuthController {
    */
   async verifyToken(req, res, next) {
     try {
-      return successResponse(res, HTTP_STATUS.OK, 'Token is valid', { user: req.user });
+      return successResponse(
+        res,
+        HTTP_STATUS.OK,
+        'Token is valid',
+        { user: req.user }
+      );
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Secure Logout
+   * POST /api/v1/logout
+   */
+  async logout(req, res, next) {
+    try {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7)
+        : null;
+
+      if (token) {
+        await authService.logout(token);
+      }
+
+      return successResponse(
+        res,
+        HTTP_STATUS.OK,
+        'Logged out successfully'
+      );
     } catch (error) {
       next(error);
     }
@@ -74,3 +117,4 @@ class AuthController {
 }
 
 module.exports = new AuthController();
+
