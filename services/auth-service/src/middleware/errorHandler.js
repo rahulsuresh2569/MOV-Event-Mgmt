@@ -24,16 +24,20 @@ const errorHandler = (err, req, res, next) => {
   // Normal error log (goes to console + error.log + all.log)
   logger.error(JSON.stringify(errorPayload));
 
-  // 🚨 Critical failure alert (5xx) — will also be written into alerts.log
-  if (statusCode >= 500) {
-    logger.error(
-      JSON.stringify({
-        ...errorPayload,
-        alert: true,
-      })
-    );
-  }
-
+  // 🚨 CRITICAL ALERT for server-side failures (5xx)
+if (statusCode >= 500) {
+  logger.alertCritical({
+    service: 'auth-service',
+    requestId: req.requestId || 'N/A',
+    method: req.method,
+    url: req.originalUrl,
+    statusCode,
+    errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
+    message: err.message,
+    stack: err.stack,
+    timestamp: new Date().toISOString(),
+  });
+}
   // Sequelize validation error
   if (err.name === 'SequelizeValidationError') {
     const errors = err.errors.map((e) => ({
