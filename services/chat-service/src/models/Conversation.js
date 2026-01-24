@@ -33,9 +33,10 @@ const conversationSchema = new mongoose.Schema(
       },
     ],
 
-    // Event information (for group conversations)
+    // Event information (required for all conversations)
     eventId: {
       type: Number,
+      required: true,
       index: true,
     },
     eventTitle: {

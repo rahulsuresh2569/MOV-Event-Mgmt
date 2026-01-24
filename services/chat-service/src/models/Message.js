@@ -32,9 +32,10 @@ const messageSchema = new mongoose.Schema(
       type: String,
     },
 
-    // Event information (for group messages)
+    // Event information (required for all messages)
     eventId: {
       type: Number,
+      required: true,
       index: true,
     },
     eventTitle: {

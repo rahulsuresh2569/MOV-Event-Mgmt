@@ -12,6 +12,7 @@ const { extractUser } = require('./middleware/extractUser');
 
 // Import routes
 const chatRoutes = require('./routes/chatRoutes');
+const inquiryRoutes = require('./routes/inquiryRoutes');
 
 // Import Socket.IO handlers
 const setupSocketHandlers = require('./socket/socketHandler');
@@ -194,6 +195,7 @@ app.use(extractUser);
 
 // API routes
 app.use('/api/v1', chatRoutes);
+app.use('/api/v1/inquiries', inquiryRoutes);
 
 // Setup Socket.IO event handlers
 setupSocketHandlers(io);

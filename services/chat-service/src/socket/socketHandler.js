@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const socketAuth = require('./socketAuth');
 const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
+const Inquiry = require('../models/Inquiry');
 const { MESSAGE_TYPES, CONVERSATION_TYPES } = require('../constants/messageTypes');
 const axios = require('axios');
 
@@ -202,28 +203,60 @@ const setupSocketHandlers = (io) => {
     // ============= EVENT: SEND DIRECT MESSAGE =============
     socket.on('send-direct-message', async (data) => {
       try {
-        const { receiverId, content } = data;
+        const { receiverId, content, eventId } = data;
 
         if (!receiverId || !content) {
           return socket.emit('error', { message: 'Receiver ID and content are required' });
         }
 
-        // Find or create conversation
+        // Require eventId for direct messages to ensure event context
+        if (!eventId) {
+          return socket.emit('error', { 
+            message: 'Event ID is required. Direct messages must be within an event context.' 
+          });
+        }
+
+        // Verify sender has access to the event
+        const senderHasAccess = await verifyEventAccess(eventId, socket.user.id, socket.user.role);
+        if (!senderHasAccess) {
+          return socket.emit('error', { 
+            message: 'You do not have access to this event' 
+          });
+        }
+
+        // Get receiver details first
+        const receiver = await getUserDetails(receiverId);
+        if (!receiver) {
+          return socket.emit('error', { message: 'Receiver not found' });
+        }
+
+        // Verify receiver has access to the same event
+        const receiverHasAccess = await verifyEventAccess(eventId, receiverId, receiver.role);
+        if (!receiverHasAccess) {
+          return socket.emit('error', { 
+            message: 'Receiver is not part of this event. You can only message participants in the same event.' 
+          });
+        }
+
+        // Get event details
+        const event = await getEventDetails(eventId);
+        if (!event) {
+          return socket.emit('error', { message: 'Event not found' });
+        }
+
+        // Find or create conversation (scoped to event)
         let conversation = await Conversation.findOne({
           type: CONVERSATION_TYPES.DIRECT,
+          eventId: eventId,
           'participants.userId': { $all: [socket.user.id, receiverId] },
         });
 
         if (!conversation) {
-          // Get receiver details from auth service
-          const receiver = await getUserDetails(receiverId);
-
-          if (!receiver) {
-            return socket.emit('error', { message: 'Receiver not found' });
-          }
-
           conversation = await Conversation.create({
             type: CONVERSATION_TYPES.DIRECT,
+            eventId: eventId,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
             participants: [
               {
                 userId: socket.user.id,
@@ -245,6 +278,9 @@ const setupSocketHandlers = (io) => {
           senderEmail: socket.user.email,
           senderRole: socket.user.role,
           receiverId,
+          receiverEmail: receiver.email,
+          eventId: eventId,
+          eventTitle: event.title,
           content,
           type: MESSAGE_TYPES.DIRECT,
           conversationId: conversation._id,
@@ -263,6 +299,8 @@ const setupSocketHandlers = (io) => {
           senderEmail: message.senderEmail,
           senderRole: message.senderRole,
           receiverId: message.receiverId,
+          eventId: message.eventId,
+          eventTitle: message.eventTitle,
           content: message.content,
           type: message.type,
           conversationId: conversation._id,
@@ -273,10 +311,11 @@ const setupSocketHandlers = (io) => {
         socket.emit('message-sent', {
           _id: message._id,
           conversationId: conversation._id,
+          eventId: eventId,
           timestamp: message.createdAt,
         });
 
-        logger.info(`Direct message sent from ${socket.user.id} to ${receiverId}`);
+        logger.info(`Direct message sent from ${socket.user.id} to ${receiverId} in event ${eventId}`);
       } catch (error) {
         logger.error(`Error sending direct message: ${error.message}`);
         socket.emit('error', { message: 'Failed to send message' });
@@ -321,6 +360,221 @@ const setupSocketHandlers = (io) => {
           userEmail: socket.user.email,
           typing: false,
         });
+      }
+    });
+
+    // ============= EVENT: SEND INQUIRY (Pre-Enrollment) =============
+    socket.on('send-inquiry', async (data) => {
+      try {
+        logger.info(`send-inquiry triggered by user ${socket.user.id} with data:`, data);
+        const { eventId, subject, question } = data;
+
+        if (!eventId || !subject || !question) {
+          return socket.emit('error', { 
+            message: 'Event ID, subject, and question are required' 
+          });
+        }
+
+        // Fetch event details
+        const event = await getEventDetails(eventId);
+        
+        if (!event) {
+          return socket.emit('error', { message: 'Event not found' });
+        }
+
+        logger.info(`Event ${eventId} status: "${event.status}"`);
+
+        // Only allow inquiries for published events (case-insensitive)
+        if (event.status?.toUpperCase() !== 'PUBLISHED') {
+          logger.warn(`Event ${eventId} is not published. Status: ${event.status}`);
+          return socket.emit('error', { 
+            message: 'This event is not open for inquiries' 
+          });
+        }
+
+        // Check if user is already enrolled (optional - they can still ask questions)
+        const isEnrolled = await checkEnrollment(eventId, socket.user.id);
+        
+        // Create inquiry
+        const inquiry = await Inquiry.create({
+          eventId: eventId,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          inquirerId: socket.user.id,
+          inquirerEmail: socket.user.email,
+          inquirerName: `${socket.user.firstName || ''} ${socket.user.lastName || ''}`.trim() || socket.user.email,
+          inquirerRole: socket.user.role,
+          subject: subject,
+          question: question,
+          status: 'pending',
+        });
+
+        // Notify organizer
+        const organizerRoom = `user:${event.organizerId}`;
+        io.to(organizerRoom).emit('inquiry-received', {
+          inquiryId: inquiry._id,
+          eventId: inquiry.eventId,
+          eventTitle: inquiry.eventTitle,
+          from: inquiry.inquirerName,
+          fromEmail: inquiry.inquirerEmail,
+          fromRole: inquiry.inquirerRole,
+          subject: inquiry.subject,
+          question: inquiry.question,
+          isEnrolled: isEnrolled,
+          timestamp: inquiry.createdAt,
+        });
+
+        // Confirm to sender
+        socket.emit('inquiry-sent', {
+          inquiryId: inquiry._id,
+          message: 'Your inquiry has been sent to the event organizer. They will respond soon.',
+        });
+
+        logger.info(`Inquiry sent for event ${eventId} by user ${socket.user.id} (${socket.user.email})`);
+      } catch (error) {
+        logger.error(`Error sending inquiry: ${error.message}`);
+        socket.emit('error', { message: 'Failed to send inquiry' });
+      }
+    });
+
+    // ============= EVENT: REPLY TO INQUIRY =============
+    socket.on('reply-inquiry', async (data) => {
+      try {
+        const { inquiryId, reply } = data;
+
+        if (!inquiryId || !reply) {
+          return socket.emit('error', { message: 'Inquiry ID and reply are required' });
+        }
+
+        // Find inquiry
+        const inquiry = await Inquiry.findById(inquiryId);
+
+        if (!inquiry) {
+          return socket.emit('error', { message: 'Inquiry not found' });
+        }
+
+        // Verify user is the organizer
+        if (inquiry.organizerId !== socket.user.id) {
+          return socket.emit('error', { message: 'Only the event organizer can reply to inquiries' });
+        }
+
+        // Update inquiry
+        inquiry.reply = reply;
+        inquiry.repliedAt = new Date();
+        inquiry.status = 'replied';
+        await inquiry.save();
+
+        // Notify inquirer
+        const inquirerRoom = `user:${inquiry.inquirerId}`;
+        io.to(inquirerRoom).emit('inquiry-replied', {
+          inquiryId: inquiry._id,
+          eventId: inquiry.eventId,
+          eventTitle: inquiry.eventTitle,
+          subject: inquiry.subject,
+          question: inquiry.question,
+          reply: inquiry.reply,
+          timestamp: inquiry.repliedAt,
+        });
+
+        // Confirm to organizer
+        socket.emit('inquiry-reply-sent', {
+          inquiryId: inquiry._id,
+          message: 'Reply sent successfully',
+        });
+
+        logger.info(`Inquiry ${inquiryId} replied by organizer ${socket.user.id}`);
+      } catch (error) {
+        logger.error(`Error replying to inquiry: ${error.message}`);
+        socket.emit('error', { message: 'Failed to send reply' });
+      }
+    });
+
+    // ============= EVENT: GET MY INQUIRIES =============
+    socket.on('get-my-inquiries', async () => {
+      try {
+        const inquiries = await Inquiry.find({
+          inquirerId: socket.user.id,
+        })
+          .sort({ createdAt: -1 })
+          .limit(50);
+
+        socket.emit('inquiries-list', { inquiries });
+        
+        logger.info(`Retrieved ${inquiries.length} inquiries for user ${socket.user.id}`);
+      } catch (error) {
+        logger.error(`Error fetching inquiries: ${error.message}`);
+        socket.emit('error', { message: 'Failed to fetch inquiries' });
+      }
+    });
+
+    // ============= EVENT: GET EVENT INQUIRIES (Organizer) =============
+    socket.on('get-event-inquiries', async (data) => {
+      try {
+        logger.info(`get-event-inquiries triggered by user ${socket.user.id} with data:`, data);
+        const { eventId } = data;
+
+        if (!eventId) {
+          logger.warn(`Event ID missing in get-event-inquiries request`);
+          return socket.emit('error', { message: 'Event ID is required' });
+        }
+
+        logger.info(`Fetching event details for event ${eventId} to verify organizer`);
+        // Verify user is organizer
+        const event = await getEventDetails(eventId);
+        
+        if (!event || event.organizerId !== socket.user.id) {
+          return socket.emit('error', { message: 'Only the event organizer can view inquiries' });
+        }
+
+        const inquiries = await Inquiry.find({
+          eventId: eventId,
+        })
+          .sort({ createdAt: -1 })
+          .limit(100);
+
+        socket.emit('event-inquiries-list', { 
+          eventId,
+          eventTitle: event.title,
+          inquiries 
+        });
+        
+        logger.info(`Retrieved ${inquiries.length} inquiries for event ${eventId}`);
+      } catch (error) {
+        logger.error(`Error fetching event inquiries: ${error.message}`);
+        socket.emit('error', { message: 'Failed to fetch inquiries' });
+      }
+    });
+
+    // ============= EVENT: MARK INQUIRY AS READ =============
+    socket.on('mark-inquiry-read', async (data) => {
+      try {
+        const { inquiryId } = data;
+
+        if (!inquiryId) {
+          return socket.emit('error', { message: 'Inquiry ID is required' });
+        }
+
+        const inquiry = await Inquiry.findById(inquiryId);
+
+        if (!inquiry) {
+          return socket.emit('error', { message: 'Inquiry not found' });
+        }
+
+        // Only organizer can mark as read
+        if (inquiry.organizerId !== socket.user.id) {
+          return socket.emit('error', { message: 'Unauthorized' });
+        }
+
+        inquiry.isRead = true;
+        inquiry.readAt = new Date();
+        await inquiry.save();
+
+        socket.emit('inquiry-marked-read', { inquiryId });
+        
+        logger.info(`Inquiry ${inquiryId} marked as read by organizer ${socket.user.id}`);
+      } catch (error) {
+        logger.error(`Error marking inquiry as read: ${error.message}`);
+        socket.emit('error', { message: 'Failed to mark inquiry as read' });
       }
     });
 

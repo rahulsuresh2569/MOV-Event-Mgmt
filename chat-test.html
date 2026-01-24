@@ -67,6 +67,31 @@
                 <button onclick="sendDirectMessage()" id="sendDirectBtn" disabled>Send Direct Message</button>
             </div>
         </div>
+
+        <div class="section">
+            <label>📧 Pre-Enrollment Inquiries (Ask organizer before enrolling):</label>
+            
+            <div class="input-group">
+                <input type="number" id="inquiryEventId" placeholder="Event ID" style="width: 30%;">
+                <input type="text" id="inquirySubject" placeholder="Subject" style="width: 40%;">
+            </div>
+            
+            <div class="input-group">
+                <input type="text" id="inquiryQuestion" placeholder="Your question..." style="width: 70%;">
+                <button onclick="sendInquiry()" id="sendInquiryBtn" disabled>Send Inquiry</button>
+            </div>
+            
+            <button onclick="getMyInquiries()" id="getMyInquiriesBtn" disabled>View My Inquiries</button>
+            <button onclick="getEventInquiries()" id="getEventInquiriesBtn" disabled>View Event Inquiries (Organizer)</button>
+            
+            <div class="chat-box" id="inquiries" style="height: 250px;"></div>
+            
+            <div class="input-group">
+                <input type="text" id="inquiryId" placeholder="Inquiry ID" style="width: 40%;">
+                <input type="text" id="replyText" placeholder="Reply..." style="width: 40%;">
+                <button onclick="replyInquiry()" id="replyInquiryBtn" disabled>Reply (Organizer)</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -108,6 +133,10 @@
                 document.getElementById('joinBtn').disabled = false;
                 document.getElementById('leaveBtn').disabled = false;
                 document.getElementById('sendDirectBtn').disabled = false;
+                document.getElementById('sendInquiryBtn').disabled = false;
+                document.getElementById('getMyInquiriesBtn').disabled = false;
+                document.getElementById('getEventInquiriesBtn').disabled = false;
+                document.getElementById('replyInquiryBtn').disabled = false;
                 
                 addMessage('✅ Successfully connected! You can now join event rooms.', 'system');
             });
@@ -132,6 +161,10 @@
                 document.getElementById('messageInput').disabled = true;
                 document.getElementById('sendGroupBtn').disabled = true;
                 document.getElementById('sendDirectBtn').disabled = true;
+                document.getElementById('sendInquiryBtn').disabled = true;
+                document.getElementById('getMyInquiriesBtn').disabled = true;
+                document.getElementById('getEventInquiriesBtn').disabled = true;
+                document.getElementById('replyInquiryBtn').disabled = true;
                 
                 addMessage('⚠️ Disconnected from chat service', 'system');
             });
@@ -189,6 +222,49 @@
             socket.on('message-sent', (data) => {
                 console.log('✅ Message sent successfully', data);
             });
+
+            // Inquiry event listeners
+            socket.on('inquiry-sent', (data) => {
+                addInquiryMessage(`✅ Inquiry sent successfully! ID: ${data.inquiryId}`, 'system');
+            });
+
+            socket.on('inquiry-received', (data) => {
+                addInquiryMessage(
+                    `📧 NEW INQUIRY from ${data.from} (${data.fromEmail}):\n` +
+                    `Subject: ${data.subject}\n` +
+                    `Question: ${data.question}\n` +
+                    `Event: ${data.eventTitle} (ID: ${data.eventId})\n` +
+                    `Inquiry ID: ${data.inquiryId}\n` +
+                    `Enrolled: ${data.isEnrolled ? 'Yes' : 'No'}`,
+                    'received'
+                );
+            });
+
+            socket.on('inquiry-replied', (data) => {
+                addInquiryMessage(
+                    `💬 REPLY to your inquiry "${data.subject}":\n` +
+                    `Event: ${data.eventTitle}\n` +
+                    `Reply: ${data.reply}\n` +
+                    `Inquiry ID: ${data.inquiryId}`,
+                    'received'
+                );
+            });
+
+            socket.on('inquiry-reply-sent', (data) => {
+                addInquiryMessage(`✅ Reply sent successfully! ID: ${data.inquiryId}`, 'system');
+            });
+
+            socket.on('inquiries-list', (data) => {
+                displayInquiries(data.inquiries, 'Your Inquiries');
+            });
+
+            socket.on('event-inquiries-list', (data) => {
+                displayInquiries(data.inquiries, `Inquiries for Event: ${data.eventTitle} (ID: ${data.eventId})`);
+            });
+
+            socket.on('inquiry-marked-read', (data) => {
+                addInquiryMessage(`✅ Inquiry ${data.inquiryId} marked as read`, 'system');
+            });
         }
 
         function joinRoom() {
@@ -243,6 +319,12 @@
                 alert('❌ Please connect first');
                 return;
             }
+            
+            if (!currentEventId) {
+                alert('❌ Please join an event room first before sending direct messages');
+                return;
+            }
+            
             const receiverId = parseInt(document.getElementById('receiverId').value);
             const content = document.getElementById('messageInput').value.trim();
             if (!receiverId || receiverId <= 0 || !content) {
@@ -252,10 +334,11 @@
 
             socket.emit('send-direct-message', {
                 receiverId: receiverId,
-                content: content
+                content: content,
+                eventId: currentEventId
             });
 
-            addMessage(`📨 Direct to User #${receiverId}: ${content}`, 'sent');
+            addMessage(`📨 Direct to User #${receiverId} (Event #${currentEventId}): ${content}`, 'sent');
             document.getElementById('messageInput').value = '';
         }
 
@@ -275,6 +358,124 @@
             
             messagesDiv.appendChild(messageDiv);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addInquiryMessage(text, type) {
+            const inquiriesDiv = document.getElementById('inquiries');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ' + type;
+            
+            const time = new Date().toLocaleTimeString();
+            messageDiv.style.whiteSpace = 'pre-line'; // Preserve line breaks
+            messageDiv.textContent = `[${time}] ${text}`;
+            
+            inquiriesDiv.appendChild(messageDiv);
+            inquiriesDiv.scrollTop = inquiriesDiv.scrollHeight;
+        }
+
+        function sendInquiry() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            
+            const eventId = parseInt(document.getElementById('inquiryEventId').value);
+            const subject = document.getElementById('inquirySubject').value.trim();
+            const question = document.getElementById('inquiryQuestion').value.trim();
+            
+            if (!eventId || !subject || !question) {
+                alert('❌ Please fill in all inquiry fields');
+                return;
+            }
+
+            socket.emit('send-inquiry', {
+                eventId: eventId,
+                subject: subject,
+                question: question
+            });
+
+            addInquiryMessage(`📧 Sending inquiry about Event #${eventId}...`, 'sent');
+            document.getElementById('inquirySubject').value = '';
+            document.getElementById('inquiryQuestion').value = '';
+        }
+
+        function replyInquiry() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            
+            const inquiryId = document.getElementById('inquiryId').value.trim();
+            const reply = document.getElementById('replyText').value.trim();
+            
+            if (!inquiryId || !reply) {
+                alert('❌ Please enter inquiry ID and reply');
+                return;
+            }
+
+            socket.emit('reply-inquiry', {
+                inquiryId: inquiryId,
+                reply: reply
+            });
+
+            addInquiryMessage(`💬 Sending reply to inquiry ${inquiryId}...`, 'sent');
+            document.getElementById('inquiryId').value = '';
+            document.getElementById('replyText').value = '';
+        }
+
+        function getMyInquiries() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            
+            console.log('Emitting get-my-inquiries');
+            socket.emit('get-my-inquiries');
+            addInquiryMessage('🔄 Loading your inquiries...', 'system');
+        }
+
+        function getEventInquiries() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            
+            const eventId = parseInt(document.getElementById('inquiryEventId').value);
+            if (!eventId) {
+                alert('❌ Please enter an event ID');
+                return;
+            }
+            
+            console.log('Emitting get-event-inquiries with eventId:', eventId);
+            socket.emit('get-event-inquiries', { eventId: eventId });
+            addInquiryMessage(`🔄 Loading inquiries for event #${eventId}...`, 'system');
+        }
+
+        function displayInquiries(inquiries, title) {
+            const inquiriesDiv = document.getElementById('inquiries');
+            inquiriesDiv.innerHTML = ''; // Clear previous
+            
+            addInquiryMessage(`=== ${title} (${inquiries.length} total) ===`, 'system');
+            
+            if (inquiries.length === 0) {
+                addInquiryMessage('No inquiries found.', 'system');
+                return;
+            }
+            
+            inquiries.forEach((inq, index) => {
+                const statusEmoji = inq.status === 'replied' ? '✅' : '⏳';
+                const inquiryText = 
+                    `${statusEmoji} #${index + 1} - ID: ${inq._id}\n` +
+                    `Event: ${inq.eventTitle} (ID: ${inq.eventId})\n` +
+                    `From: ${inq.inquirerName} (${inq.inquirerEmail}) [${inq.inquirerRole}]\n` +
+                    `Subject: ${inq.subject}\n` +
+                    `Question: ${inq.question}\n` +
+                    (inq.reply ? `Reply: ${inq.reply}\n` : '') +
+                    `Status: ${inq.status} | Created: ${new Date(inq.createdAt).toLocaleString()}` +
+                    (inq.repliedAt ? ` | Replied: ${new Date(inq.repliedAt).toLocaleString()}` : '');
+                
+                addInquiryMessage(inquiryText, inq.status === 'replied' ? 'received' : 'system');
+            });
         }
 
         // Auto-scroll to bottom
