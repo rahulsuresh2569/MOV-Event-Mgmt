@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+const redisClient = require('../config/redis');
 const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 
 class AuthService {
@@ -102,6 +103,27 @@ class AuthService {
       };
     } catch (error) {
       logger.error(`Login error: ${error.message}`);
+      throw error;
+    }
+  }
+  /**
+   * Secure logout by blacklisting JWT in Redis until it expires
+   */
+  async logout(token) {
+    try {
+      const decoded = jwt.decode(token);
+      if (!decoded || !decoded.exp) return;
+
+      const now = Math.floor(Date.now() / 1000);
+      const ttlSeconds = decoded.exp - now;
+
+      if (ttlSeconds > 0) {
+        await redisClient.set(`bl:${token}`, '1', { EX: ttlSeconds });
+      }
+
+      logger.info(`User logged out (token blacklisted)`);
+    } catch (error) {
+      logger.error(`Logout error: ${error.message}`);
       throw error;
     }
   }
