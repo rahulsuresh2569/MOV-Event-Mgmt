@@ -92,13 +92,19 @@ const proxyOptions = {
     });
   },
 };
-// ✅ Secure Logout (handled by API Gateway, not proxied)
+/**
+ * Secure Logout
+ * POST /api/v1/auth/logout
+ */
 app.post('/api/v1/auth/logout', verifyToken, (req, res) => {
-  if (req.token) {
-    revokeToken(req.token);
-  }
-  return successResponse(res, HTTP_STATUS.OK, 'Logout successful');
+  revokeToken(req.token);
+
+  res.status(200).json({
+    success: true,
+    message: 'Logged out successfully',
+  });
 });
+
 
 
 
