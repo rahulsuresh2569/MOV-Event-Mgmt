@@ -24,20 +24,11 @@ const errorHandler = (err, req, res, next) => {
   // Normal error log (goes to console + error.log + all.log)
   logger.error(JSON.stringify(errorPayload));
 
-  // 🚨 CRITICAL ALERT for server-side failures (5xx)
-if (statusCode >= 500) {
-  logger.alertCritical({
-    service: 'auth-service',
-    requestId: req.requestId || 'N/A',
-    method: req.method,
-    url: req.originalUrl,
-    statusCode,
-    errorCode: err.errorCode || ERROR_CODES.INTERNAL_ERROR,
-    message: err.message,
-    stack: err.stack,
-    timestamp: new Date().toISOString(),
-  });
-}
+  // 🚨 CRITICAL ALERT for 5xx failures (writes to alerts.log via logger.alertCritical)
+  if (statusCode >= 500 && typeof logger.alertCritical === 'function') {
+    logger.alertCritical(errorPayload);
+  }
+
   // Sequelize validation error
   if (err.name === 'SequelizeValidationError') {
     const errors = err.errors.map((e) => ({
@@ -115,7 +106,7 @@ if (statusCode >= 500) {
  * 404 Not Found handler
  */
 const notFoundHandler = (req, res) => {
-  errorResponse(res, HTTP_STATUS.NOT_FOUND, 'Route not found', ERROR_CODES.NOT_FOUND);
+  return errorResponse(res, HTTP_STATUS.NOT_FOUND, 'Route not found', ERROR_CODES.NOT_FOUND);
 };
 
 module.exports = {
