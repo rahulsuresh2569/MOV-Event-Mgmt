@@ -55,6 +55,7 @@
         
         <div class="section">
             <label>💬 Chat Messages:</label>
+            <button onclick="loadMoreMessages()" id="loadMoreBtn" disabled style="margin-bottom: 10px;">Load More Messages</button>
             <div class="chat-box" id="messages"></div>
             
             <div class="input-group">
@@ -204,6 +205,20 @@
                 currentEventId = data.eventId;
                 document.getElementById('messageInput').disabled = false;
                 document.getElementById('sendGroupBtn').disabled = false;
+                document.getElementById('loadMoreBtn').disabled = false;
+                
+                // Display chat history
+                if (data.chatHistory && data.chatHistory.length > 0) {
+                    addMessage(`📜 Loading ${data.chatHistory.length} previous messages...`, 'system');
+                    data.chatHistory.forEach(msg => {
+                        const isSent = msg.senderId === currentUserId;
+                        const messageText = `${msg.senderEmail}: ${msg.content}`;
+                        const timestamp = new Date(msg.timestamp).toLocaleString();
+                        addMessage(`${messageText} [${timestamp}]`, isSent ? 'sent' : 'received');
+                    });
+                } else {
+                    addMessage('No previous messages in this chat.', 'system');
+                }
             });
 
             socket.on('left-event-room', (data) => {
@@ -211,6 +226,39 @@
                 currentEventId = null;
                 document.getElementById('messageInput').disabled = true;
                 document.getElementById('sendGroupBtn').disabled = true;
+                document.getElementById('loadMoreBtn').disabled = true;
+            });
+
+            socket.on('more-messages', (data) => {
+                if (data.messages && data.messages.length > 0) {
+                    addMessage(`📜 Loaded ${data.messages.length} older messages...`, 'system');
+                    
+                    // Insert at the top
+                    const messagesDiv = document.getElementById('messages');
+                    const oldScrollHeight = messagesDiv.scrollHeight;
+                    
+                    data.messages.forEach(msg => {
+                        const isSent = msg.senderId === currentUserId;
+                        const messageText = `${msg.senderEmail}: ${msg.content}`;
+                        const timestamp = new Date(msg.timestamp).toLocaleString();
+                        
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+                        messageDiv.textContent = `${messageText} [${timestamp}]`;
+                        
+                        // Insert at the beginning
+                        messagesDiv.insertBefore(messageDiv, messagesDiv.firstChild);
+                    });
+                    
+                    // Restore scroll position (keep view where it was)
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight - oldScrollHeight;
+                    
+                    if (!data.hasMore) {
+                        addMessage('📜 No more messages to load.', 'system');
+                    }
+                } else {
+                    addMessage('📜 No more messages to load.', 'system');
+                }
             });
 
             socket.on('typing-indicator', (data) => {
@@ -291,6 +339,38 @@
                 return;
             }
             socket.emit('leave-event-room', { eventId: currentEventId });
+        }
+
+        function loadMoreMessages() {
+            if (!socket || !socket.connected) {
+                alert('❌ Please connect first');
+                return;
+            }
+            if (!currentEventId) {
+                alert('❌ Please join a room first');
+                return;
+            }
+            
+            // Get the oldest message timestamp from current messages
+            const messagesDiv = document.getElementById('messages');
+            const allMessages = messagesDiv.querySelectorAll('.message:not(.system)');
+            
+            let oldestTimestamp = null;
+            if (allMessages.length > 0) {
+                // Extract timestamp from the first non-system message
+                const firstMsg = allMessages[0].textContent;
+                const timestampMatch = firstMsg.match(/\[(.*?)\]/);
+                if (timestampMatch) {
+                    oldestTimestamp = new Date(timestampMatch[1]).toISOString();
+                }
+            }
+            
+            socket.emit('load-more-messages', { 
+                eventId: currentEventId, 
+                before: oldestTimestamp,
+                limit: 50 
+            });
+            addMessage('🔄 Loading more messages...', 'system');
         }
 
         function sendGroupMessage() {

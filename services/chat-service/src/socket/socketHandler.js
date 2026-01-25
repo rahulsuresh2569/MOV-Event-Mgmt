@@ -77,6 +77,18 @@ const setupSocketHandlers = (io) => {
           await conversation.save();
         }
 
+        // Load chat history (last 50 messages)
+        const chatHistory = await Message.find({
+          eventId,
+          type: MESSAGE_TYPES.GROUP,
+        })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean();
+
+        // Reverse to show oldest first
+        chatHistory.reverse();
+
         // Notify others in the room
         socket.to(eventRoom).emit('user-joined', {
           userId: socket.user.id,
@@ -85,11 +97,22 @@ const setupSocketHandlers = (io) => {
           timestamp: new Date(),
         });
 
-        // Send confirmation to user
+        // Send confirmation to user with chat history
         socket.emit('joined-event-room', {
           eventId,
           conversationId: conversation._id,
           message: 'Successfully joined event chat',
+          chatHistory: chatHistory.map(msg => ({
+            _id: msg._id,
+            senderId: msg.senderId,
+            senderEmail: msg.senderEmail,
+            senderRole: msg.senderRole,
+            eventId: msg.eventId,
+            eventTitle: msg.eventTitle,
+            content: msg.content,
+            type: msg.type,
+            timestamp: msg.createdAt,
+          })),
         });
       } catch (error) {
         logger.error(`Error joining event room: ${error.message}`);
@@ -570,6 +593,63 @@ const setupSocketHandlers = (io) => {
       } catch (error) {
         logger.error(`Error fetching inquiries: ${error.message}`);
         socket.emit('error', { message: 'Failed to fetch inquiries' });
+      }
+    });
+
+    // ============= EVENT: LOAD MORE CHAT HISTORY =============
+    socket.on('load-more-messages', async (data) => {
+      try {
+        const { eventId, before, limit = 50 } = data;
+
+        if (!eventId) {
+          return socket.emit('error', { message: 'Event ID is required' });
+        }
+
+        // Verify access
+        const hasAccess = await verifyEventAccess(eventId, socket.user.id, socket.user.role);
+        if (!hasAccess) {
+          return socket.emit('error', { message: 'You do not have access to this event chat' });
+        }
+
+        // Build query
+        const query = {
+          eventId,
+          type: MESSAGE_TYPES.GROUP,
+        };
+
+        // If 'before' timestamp provided, only get messages before that time
+        if (before) {
+          query.createdAt = { $lt: new Date(before) };
+        }
+
+        const messages = await Message.find(query)
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .lean();
+
+        // Reverse to show oldest first
+        messages.reverse();
+
+        socket.emit('more-messages', {
+          eventId,
+          messages: messages.map(msg => ({
+            _id: msg._id,
+            senderId: msg.senderId,
+            senderEmail: msg.senderEmail,
+            senderRole: msg.senderRole,
+            eventId: msg.eventId,
+            eventTitle: msg.eventTitle,
+            content: msg.content,
+            type: msg.type,
+            timestamp: msg.createdAt,
+          })),
+          hasMore: messages.length === limit,
+        });
+
+        logger.info(`Loaded ${messages.length} more messages for event ${eventId}`);
+      } catch (error) {
+        logger.error(`Error loading more messages: ${error.message}`);
+        socket.emit('error', { message: 'Failed to load more messages' });
       }
     });
 
