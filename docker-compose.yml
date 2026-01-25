@@ -190,11 +190,14 @@ services:
       DB_NAME: mov_enrollments
       DB_DIALECT: postgres
       EVENT_SERVICE_URL: http://event-service:3002
+      REDIS_URL: redis://redis:6379
       LOG_LEVEL: info
     networks:
       - mov-network
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       event-service:
         condition: service_started
@@ -215,12 +218,40 @@ services:
       AUTH_SERVICE_URL: http://auth-service:3001
       EVENT_SERVICE_URL: http://event-service:3002
       ENROLLMENT_SERVICE_URL: http://enrollment-service:3003
+      REDIS_URL: redis://redis:6379
       ALLOWED_ORIGINS: http://localhost:3000,http://localhost:5173
       LOG_LEVEL: info
     networks:
       - mov-network
     depends_on:
       mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: mov-notification-service
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      MONGODB_URI: mongodb://admin:dev123@mongodb:27017/mov_notifications?authSource=admin
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: your-super-secret-jwt-key
+      CORS_ORIGIN: http://localhost:3000,http://localhost:8080,http://localhost:5173
+      NOTIFICATION_RETENTION_DAYS: 90
+      LOG_LEVEL: info
+    networks:
+      - mov-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 # ============= VOLUMES =============

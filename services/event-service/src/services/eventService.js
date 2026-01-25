@@ -2,6 +2,7 @@ const Event = require('../models/Event');
 const logger = require('../utils/logger');
 const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 const { EVENT_STATES, VALID_TRANSITIONS } = require('../constants/eventStates');
+const { publishEvent } = require('../config/redis');
 const axios = require('axios');
 const { Op } = require('sequelize');
 
@@ -42,6 +43,32 @@ class EventService {
         logger.error(`Response data: ${JSON.stringify(error.response.data)}`);
       }
       // Return empty array if enrollment service is unavailable
+      return [];
+    }
+  }
+
+  /**
+   * Helper: Get user IDs enrolled in a specific event
+   */
+  async getEnrolledUserIds(eventId) {
+    try {
+      const response = await axios.get(`${ENROLLMENT_SERVICE_URL}/event/${eventId}`, {
+        headers: {
+          'x-user-id': 'system',
+          'x-user-email': 'internal-service-call@system',
+          'x-user-role': 'INTERNAL',
+        },
+      });
+
+      const enrollments = response.data.data?.enrollments || [];
+      const enrolledUserIds = enrollments
+        .filter((enrollment) => enrollment.status === 'active')
+        .map((enrollment) => enrollment.userId);
+
+      logger.info(`Event ${eventId} has ${enrolledUserIds.length} enrolled users`);
+      return enrolledUserIds;
+    } catch (error) {
+      logger.error(`Error fetching enrolled users for event ${eventId}: ${error.message}`);
       return [];
     }
   }
@@ -233,6 +260,24 @@ class EventService {
       await event.update(updateData);
 
       logger.info(`Event updated: ${eventId}`);
+      
+      // Publish event updated notification if important fields changed
+      const importantFields = ['title', 'description', 'startDate', 'endDate', 'startTime', 'endTime', 'location', 'maxParticipants'];
+      const changedImportantFields = importantFields.filter(field => updateData.hasOwnProperty(field));
+      
+      if (changedImportantFields.length > 0) {
+        // Get enrolled user IDs for notifications
+        const enrolledUserIds = await this.getEnrolledUserIds(eventId);
+        
+        await publishEvent('EVENT_UPDATED', {
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          changes: changedImportantFields,
+          enrolledUserIds: enrolledUserIds
+        });
+      }
+      
       return event;
     } catch (error) {
       logger.error(`Error updating event: ${error.message}`);
@@ -310,6 +355,54 @@ class EventService {
       await event.save();
 
       logger.info(`Event ${eventId} status changed to ${newStatus}`);
+      
+      // Publish event status change notifications
+      const enrolledUserIds = await this.getEnrolledUserIds(eventId);
+      
+      // Publish generic status change event
+      await publishEvent('EVENT_STATUS_CHANGED', {
+        eventId: event.id,
+        eventTitle: event.title,
+        organizerId: event.organizerId,
+        oldStatus: event.status,
+        newStatus: newStatus,
+        enrolledUserIds: enrolledUserIds
+      });
+      
+      // Publish specific event based on new status
+      if (newStatus === EVENT_STATES.PUBLISHED) {
+        await publishEvent('EVENT_PUBLISHED', {
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          startDate: event.startDate,
+          location: event.location
+        });
+      } else if (newStatus === EVENT_STATES.RUNNING) {
+        await publishEvent('EVENT_STARTED', {
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          startTime: event.startTime,
+          location: event.location,
+          enrolledUserIds: enrolledUserIds
+        });
+      } else if (newStatus === EVENT_STATES.CANCELED) {
+        await publishEvent('EVENT_CANCELLED', {
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          enrolledUserIds: enrolledUserIds
+        });
+      } else if (newStatus === EVENT_STATES.COMPLETED) {
+        await publishEvent('EVENT_COMPLETED', {
+          eventId: event.id,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          enrolledUserIds: enrolledUserIds
+        });
+      }
+      
       return event;
     } catch (error) {
       logger.error(`Error changing event status: ${error.message}`);

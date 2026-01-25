@@ -1,12 +1,16 @@
 require('dotenv').config();
 const app = require('./app');
 const { connectDB } = require('./config/database');
+const { connectRedis, disconnectRedis } = require('./config/redis');
 const logger = require('./utils/logger');
 
 const PORT = process.env.PORT || 3003;
 
 // Connect to database
 connectDB();
+
+// Connect to Redis for event publishing
+connectRedis();
 
 // Start server
 app.listen(PORT, () => {
@@ -16,12 +20,14 @@ app.listen(PORT, () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM signal received: closing HTTP server');
+  await disconnectRedis();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('SIGINT signal received: closing HTTP server');
+  await disconnectRedis();
   process.exit(0);
 });

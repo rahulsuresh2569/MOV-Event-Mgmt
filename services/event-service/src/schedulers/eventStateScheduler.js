@@ -1,8 +1,12 @@
 const cron = require('node-cron');
 const Event = require('../models/Event');
 const { EVENT_STATES } = require('../constants/eventStates');
+const { publishEvent } = require('../config/redis');
 const { Op } = require('sequelize');
 const logger = require('../utils/logger');
+const axios = require('axios');
+
+const ENROLLMENT_SERVICE_URL = process.env.ENROLLMENT_SERVICE_URL || 'http://localhost:3003';
 
 /**
  * Event State Scheduler
@@ -86,12 +90,37 @@ class EventStateScheduler {
 
       for (const event of eventsToStart) {
         try {
+          const oldStatus = event.status;
           event.status = EVENT_STATES.RUNNING;
           await event.save();
 
           logger.info(
             `Auto-transitioned event ${event.id} ("${event.title}") from Published to Running`
           );
+          
+          // Get enrolled users for notifications
+          const enrolledUserIds = await this.getEnrolledUserIds(event.id);
+          
+          // Publish status change events
+          await publishEvent('EVENT_STATUS_CHANGED', {
+            eventId: event.id,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
+            oldStatus: oldStatus,
+            newStatus: EVENT_STATES.RUNNING,
+            enrolledUserIds: enrolledUserIds
+          });
+
+          // Publish specific event started notification
+          await publishEvent('EVENT_STARTED', {
+            eventId: event.id,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
+            startTime: event.startTime,
+            location: event.location,
+            enrolledUserIds: enrolledUserIds
+          });
+
           transitionedCount++;
         } catch (error) {
           logger.error(
@@ -128,12 +157,34 @@ class EventStateScheduler {
 
       for (const event of eventsToComplete) {
         try {
+          const oldStatus = event.status;
           event.status = EVENT_STATES.COMPLETED;
           await event.save();
 
           logger.info(
             `Auto-transitioned event ${event.id} ("${event.title}") from Running to Completed`
           );
+          
+          // Get enrolled users for notifications
+          const enrolledUserIds = await this.getEnrolledUserIds(event.id);
+          
+          // Publish status change events
+          await publishEvent('EVENT_STATUS_CHANGED', {
+            eventId: event.id,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
+            oldStatus: oldStatus,
+            newStatus: EVENT_STATES.COMPLETED,
+            enrolledUserIds: enrolledUserIds
+          });
+
+          await publishEvent('EVENT_COMPLETED', {
+            eventId: event.id,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
+            enrolledUserIds: enrolledUserIds
+          });
+
           transitionedCount++;
         } catch (error) {
           logger.error(
@@ -167,6 +218,31 @@ class EventStateScheduler {
    */
   isActive() {
     return this.task !== null;
+  }
+
+  /**
+   * Get enrolled user IDs for an event
+   */
+  async getEnrolledUserIds(eventId) {
+    try {
+      const response = await axios.get(`${ENROLLMENT_SERVICE_URL}/event/${eventId}`, {
+        headers: {
+          'x-user-id': 'system',
+          'x-user-email': 'scheduler@system',
+          'x-user-role': 'INTERNAL',
+        },
+      });
+
+      const enrollments = response.data.data?.enrollments || [];
+      const enrolledUserIds = enrollments
+        .filter((enrollment) => enrollment.status === 'active')
+        .map((enrollment) => enrollment.userId);
+
+      return enrolledUserIds;
+    } catch (error) {
+      logger.error(`Error fetching enrolled users for event ${eventId}: ${error.message}`);
+      return [];
+    }
   }
 }
 

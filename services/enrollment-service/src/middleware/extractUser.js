@@ -11,7 +11,7 @@ const extractUser = (req, res, next) => {
 
   if (userId && userEmail && userRole) {
     req.user = {
-      id: parseInt(userId, 10),
+      id: userId === 'system' ? 'system' : parseInt(userId, 10),
       email: userEmail,
       role: userRole,
     };

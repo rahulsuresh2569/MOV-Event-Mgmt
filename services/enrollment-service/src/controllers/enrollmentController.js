@@ -42,7 +42,7 @@ class EnrollmentController {
         throw error;
       }
 
-      await enrollmentService.unenrollFromEvent(eventId, req.user.id, req.user.role);
+      await enrollmentService.unenrollFromEvent(eventId, req.user.id, req.user.role, req.user.email);
 
       return successResponse(res, HTTP_STATUS.OK, 'Unenrolled successfully');
     } catch (err) {
