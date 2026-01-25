@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const Inquiry = require('../models/Inquiry');
 const { MESSAGE_TYPES, CONVERSATION_TYPES } = require('../constants/messageTypes');
+const { publishEvent } = require('../config/redis');
 const axios = require('axios');
 
 /**
@@ -194,6 +195,29 @@ const setupSocketHandlers = (io) => {
           timestamp: message.createdAt,
         });
 
+        // Publish MESSAGE_RECEIVED event to Redis for notifications
+        // Notify all participants except the sender
+        const recipientIds = conversation.participants
+          .filter(p => p.userId !== socket.user.id)
+          .map(p => p.userId);
+
+        for (const recipientId of recipientIds) {
+          await publishEvent('events', {
+            type: 'MESSAGE_RECEIVED',
+            data: {
+              messageId: message._id.toString(),
+              conversationId: conversation._id.toString(),
+              senderId: socket.user.id,
+              senderName: socket.user.email,
+              recipientId: recipientId,
+              message: content,
+              conversationType: 'group',
+              eventId: eventId,
+              eventTitle: eventTitle
+            }
+          });
+        }
+
         logger.info(`Group message sent in event ${eventId} by user ${socket.user.id}`);
       } catch (error) {
         logger.error(`Error sending group message: ${error.message}`);
@@ -306,6 +330,22 @@ const setupSocketHandlers = (io) => {
           type: message.type,
           conversationId: conversation._id,
           timestamp: message.createdAt,
+        });
+
+        // Publish MESSAGE_RECEIVED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'MESSAGE_RECEIVED',
+          data: {
+            messageId: message._id.toString(),
+            conversationId: conversation._id.toString(),
+            senderId: socket.user.id,
+            senderName: socket.user.email,
+            recipientId: receiverId,
+            message: content,
+            conversationType: 'direct',
+            eventId: eventId,
+            eventTitle: event.title
+          }
         });
 
         // Send confirmation to sender
@@ -425,6 +465,19 @@ const setupSocketHandlers = (io) => {
           timestamp: inquiry.createdAt,
         });
 
+        // Publish INQUIRY_RECEIVED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'INQUIRY_RECEIVED',
+          data: {
+            inquiryId: inquiry._id.toString(),
+            eventId: inquiry.eventId,
+            eventTitle: inquiry.eventTitle,
+            organizerId: event.organizerId,
+            participantName: inquiry.inquirerName,
+            question: inquiry.question
+          }
+        });
+
         // Confirm to sender
         socket.emit('inquiry-sent', {
           inquiryId: inquiry._id,
@@ -475,6 +528,18 @@ const setupSocketHandlers = (io) => {
           question: inquiry.question,
           reply: inquiry.reply,
           timestamp: inquiry.repliedAt,
+        });
+
+        // Publish INQUIRY_REPLIED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'INQUIRY_REPLIED',
+          data: {
+            inquiryId: inquiry._id.toString(),
+            eventId: inquiry.eventId,
+            eventTitle: inquiry.eventTitle,
+            participantId: inquiry.inquirerId,
+            organizerName: socket.user.email
+          }
         });
 
         // Confirm to organizer
