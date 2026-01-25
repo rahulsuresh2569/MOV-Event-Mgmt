@@ -18,7 +18,7 @@ const cleanupRevoked = () => {
 };
 
 // Clean up every minute (safe for Docker / Node)
-setInterval(cleanupRevoked, 60 * 1000);
+setInterval(cleanupRevoked, 60 * 1000).unref();
 
 /**
  * Extract Bearer token safely
@@ -35,11 +35,9 @@ const getBearerToken = (req) => {
 const revokeToken = (token) => {
   try {
     const decoded = jwt.decode(token);
-    // decoded.exp is in seconds
     const expMs = decoded?.exp ? decoded.exp * 1000 : Date.now() + 60 * 60 * 1000;
     revokedTokens.set(token, expMs);
   } catch (e) {
-    // fallback: revoke for 1 hour
     revokedTokens.set(token, Date.now() + 60 * 60 * 1000);
   }
 };
@@ -93,7 +91,7 @@ const verifyToken = (req, res, next) => {
       role: decoded.role,
     };
 
-    // Keep token if needed in other middleware
+    // ✅ IMPORTANT: keep token for logout route
     req.token = token;
 
     next();
@@ -184,8 +182,6 @@ module.exports = {
   requireRole,
   optionalAuth,
   forwardUserContext,
-
-  // ✅ Export these for logout route
   revokeToken,
   isTokenRevoked,
 };
