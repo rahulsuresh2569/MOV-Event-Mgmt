@@ -25,9 +25,10 @@ const errorHandler = (err, req, res, next) => {
   logger.error(JSON.stringify(errorPayload));
 
   // 🚨 CRITICAL ALERT for 5xx failures (writes to alerts.log via logger.alertCritical)
-  if (statusCode >= 500 && typeof logger.alertCritical === 'function') {
-    logger.alertCritical(errorPayload);
-  }
+  if (statusCode >= 500) {
+  logger.alertCritical(errorPayload);
+}
+
 
   // Sequelize validation error
   if (err.name === 'SequelizeValidationError') {
