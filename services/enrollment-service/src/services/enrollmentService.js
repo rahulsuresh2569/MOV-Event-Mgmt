@@ -4,6 +4,7 @@ const Enrollment = require('../models/Enrollment');
 const logger = require('../utils/logger');
 const { HTTP_STATUS, ERROR_CODES } = require('../constants/httpStatus');
 const { ENROLLMENT_STATUS, ENROLLABLE_EVENT_STATES } = require('../constants/enrollmentStates');
+const { publishEvent } = require('../config/redis');
 
 class EnrollmentService {
   /**
@@ -134,6 +135,60 @@ class EnrollmentService {
           
           await transaction.commit();
           logger.info(`User ${userId} re-enrolled in event ${eventId}`);
+          
+          // Publish enrollment created event for notifications
+          await publishEvent('ENROLLMENT_CREATED', {
+            enrollmentId: existingEnrollment.id,
+            userId: userId,
+            eventId: eventId,
+            eventTitle: event.title,
+            organizerId: event.organizerId,
+            currentParticipants: event.currentParticipants + 1,
+            maxParticipants: event.maxParticipants
+          });
+          
+          // Wait 100ms to ensure enrollment notification is processed first
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Check capacity thresholds - only notify when CROSSING the threshold
+          const oldParticipants = event.currentParticipants;
+          const newParticipants = event.currentParticipants + 1;
+          const oldPercentage = (oldParticipants / event.maxParticipants) * 100;
+          const newPercentage = (newParticipants / event.maxParticipants) * 100;
+          
+          // Check if we just crossed 100% (became full)
+          if (newPercentage >= 100 && oldPercentage < 100) {
+            await publishEvent('CAPACITY_FULL', {
+              eventId: eventId,
+              eventTitle: event.title,
+              organizerId: event.organizerId,
+              currentParticipants: newParticipants,
+              maxParticipants: event.maxParticipants
+            });
+          }
+          // Check if we just crossed 90% threshold
+          else if (newPercentage >= 90 && oldPercentage < 90) {
+            await publishEvent('CAPACITY_90_PERCENT', {
+              eventId: eventId,
+              eventTitle: event.title,
+              organizerId: event.organizerId,
+              currentParticipants: newParticipants,
+              maxParticipants: event.maxParticipants,
+              threshold: 90
+            });
+          }
+          // Check if we just crossed 80% threshold
+          else if (newPercentage >= 80 && oldPercentage < 80) {
+            await publishEvent('CAPACITY_80_PERCENT', {
+              eventId: eventId,
+              eventTitle: event.title,
+              organizerId: event.organizerId,
+              currentParticipants: newParticipants,
+              maxParticipants: event.maxParticipants,
+              threshold: 80
+            });
+          }
+          
           return existingEnrollment;
         }
       }
@@ -168,6 +223,60 @@ class EnrollmentService {
       await transaction.commit();
 
       logger.info(`User ${userId} enrolled in event ${eventId}`);
+      
+      // 9. Publish enrollment created event for notifications
+      await publishEvent('ENROLLMENT_CREATED', {
+        enrollmentId: enrollment.id,
+        userId: userId,
+        eventId: eventId,
+        eventTitle: event.title,
+        organizerId: event.organizerId,
+        currentParticipants: event.currentParticipants + 1,
+        maxParticipants: event.maxParticipants
+      });
+      
+      // Wait 100ms to ensure enrollment notification is processed first
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // 10. Check and publish capacity threshold events - only notify when CROSSING the threshold
+      const oldParticipants = event.currentParticipants;
+      const newParticipants = event.currentParticipants + 1;
+      const oldPercentage = (oldParticipants / event.maxParticipants) * 100;
+      const newPercentage = (newParticipants / event.maxParticipants) * 100;
+      
+      // Check if we just crossed 100% (became full)
+      if (newPercentage >= 100 && oldPercentage < 100) {
+        await publishEvent('CAPACITY_FULL', {
+          eventId: eventId,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          currentParticipants: newParticipants,
+          maxParticipants: event.maxParticipants
+        });
+      }
+      // Check if we just crossed 90% threshold
+      else if (newPercentage >= 90 && oldPercentage < 90) {
+        await publishEvent('CAPACITY_90_PERCENT', {
+          eventId: eventId,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          currentParticipants: newParticipants,
+          maxParticipants: event.maxParticipants,
+          threshold: 90
+        });
+      }
+      // Check if we just crossed 80% threshold
+      else if (newPercentage >= 80 && oldPercentage < 80) {
+        await publishEvent('CAPACITY_80_PERCENT', {
+          eventId: eventId,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          currentParticipants: newParticipants,
+          maxParticipants: event.maxParticipants,
+          threshold: 80
+        });
+      }
+      
       return enrollment;
     } catch (error) {
       // Rollback transaction on any error
@@ -181,7 +290,7 @@ class EnrollmentService {
    * Unenroll user from an event
    * Uses atomic transaction to ensure unenrollment + capacity update happen together
    */
-  async unenrollFromEvent(eventId, userId, userRole) {
+  async unenrollFromEvent(eventId, userId, userRole, userEmail = 'Unknown User') {
     const { sequelize } = require('../config/database');
     const transaction = await sequelize.transaction({
       isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED,
@@ -249,6 +358,31 @@ class EnrollmentService {
 
       await transaction.commit();
       logger.info(`User ${userId} unenrolled from event ${eventId}`);
+      
+      // 7. Publish enrollment cancelled event for notifications
+      await publishEvent('ENROLLMENT_CANCELLED', {
+        enrollmentId: enrollment.id,
+        userId: userId,
+        userName: userEmail,
+        eventId: eventId,
+        eventTitle: event.title,
+        organizerId: event.organizerId,
+        cancelledBy: 'participant',
+        currentParticipants: event.currentParticipants - 1,
+        maxParticipants: event.maxParticipants
+      });
+      
+      // 8. Check if capacity is now available (was full, now has space)
+      if (event.currentParticipants >= event.maxParticipants) {
+        await publishEvent('CAPACITY_AVAILABLE', {
+          eventId: eventId,
+          eventTitle: event.title,
+          organizerId: event.organizerId,
+          currentParticipants: event.currentParticipants - 1,
+          maxParticipants: event.maxParticipants
+        });
+      }
+      
       return enrollment;
     } catch (error) {
       await transaction.rollback();
@@ -304,8 +438,8 @@ class EnrollmentService {
       // 1. Fetch event to check ownership
       const event = await this.getEventById(eventId);
 
-      // 2. Check if user is the organizer of this event
-      if (event.organizerId !== userId) {
+      // 2. Check if user is the organizer of this event (bypass for internal system calls)
+      if (userId !== 'system' && event.organizerId !== userId) {
         const error = new Error(
           'Only the event organizer can view enrollments for their events'
         );

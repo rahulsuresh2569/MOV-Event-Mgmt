@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const { sequelize, testConnection } = require('./config/database');
+const { connectRedis, disconnectRedis } = require('./config/redis');
 const logger = require('./utils/logger');
 const eventStateScheduler = require('./schedulers/eventStateScheduler');
 
@@ -10,6 +11,9 @@ const startServer = async () => {
   try {
     // Test database connection
     await testConnection();
+
+    // Connect to Redis for event publishing
+    await connectRedis();
 
     // Sync database (in development only)
     if (process.env.NODE_ENV === 'development') {
@@ -33,6 +37,9 @@ const startServer = async () => {
       
       // Stop scheduler
       eventStateScheduler.stop();
+      
+      // Disconnect Redis
+      await disconnectRedis();
       
       server.close(async () => {
         logger.info('HTTP server closed');
