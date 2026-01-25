@@ -2,6 +2,11 @@ const winston = require('winston');
 const fs = require('fs');
 const path = require('path');
 
+const logDir = path.join(process.cwd(), 'logs');
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true });
+}
+
 const logLevels = {
   error: 0,
   warn: 1,
@@ -20,60 +25,49 @@ const logColors = {
 
 winston.addColors(logColors);
 
-// ✅ Ensure logs directory exists
-const logsDir = path.join(process.cwd(), 'logs');
-if (!fs.existsSync(logsDir)) {
-  fs.mkdirSync(logsDir, { recursive: true });
-}
-
 const format = winston.format.combine(
   winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
   winston.format.colorize({ all: true }),
   winston.format.printf((info) => `${info.timestamp} ${info.level}: ${info.message}`)
 );
 
+const transports = [
+  new winston.transports.Console(),
+
+  // normal errors
+  new winston.transports.File({
+    filename: 'logs/error.log',
+    level: 'error',
+  }),
+
+  // everything
+  new winston.transports.File({
+    filename: 'logs/all.log',
+  }),
+
+  // alerts for critical failures (we will write to this explicitly)
+  new winston.transports.File({
+    filename: 'logs/alerts.log',
+    level: 'error',
+  }),
+];
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   levels: logLevels,
   format,
-  transports: [
-    new winston.transports.Console(),
-
-    // ONLY errors
-    new winston.transports.File({
-      filename: 'logs/error.log',
-      level: 'error',
-    }),
-
-    // ALL logs (info + warn + error etc.)
-    new winston.transports.File({
-      filename: 'logs/all.log',
-    }),
-
-    // ALERTS only (critical failures)
-    new winston.transports.File({
-      filename: 'logs/alerts.log',
-      level: 'error',
-    }),
-  ],
+  transports,
 });
 
-// ✅ Alert helper: write ONLY to alerts.log (not to error.log)
+// helper for alerting (critical failures)
 logger.alertCritical = (payload) => {
-  // Show clearly in container console
-  console.error('🚨 CRITICAL ALERT 🚨', payload);
-
-  // Write only into alerts.log
-  logger.log({
-    level: 'error',
-    message: JSON.stringify({
+  logger.error(
+    JSON.stringify({
       alert: true,
       severity: 'CRITICAL',
       ...payload,
-    }),
-    // ✅ route ONLY to alerts.log transport
-    transports: [logger.transports.find((t) => t.filename && t.filename.includes('alerts.log'))],
-  });
+    })
+  );
 };
 
 module.exports = logger;
