@@ -286,6 +286,22 @@ app.use(
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+// ✅ Secure Logout (invalidate token at API Gateway)
+app.post('/api/v1/auth/logout', verifyToken, (req, res) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
+
+  if (token) {
+    revokeToken(token);
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: 'Logout successful',
+  });
+});
+
+
 // Protected auth routes (require authentication)
 app.use(
   '/api/v1/auth',
