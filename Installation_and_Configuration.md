@@ -55,7 +55,7 @@ docker-compose up --build -d
 ```
 
 This command will:
-- Build Docker images for all microservices (API Gateway, Auth Service, Event Service, Enrollment Service)
+- Build Docker images for all microservices (API Gateway, Auth Service, Event Service, Enrollment Service, Chat Service)
 - Start PostgreSQL database with initialized schemas
 - Start MongoDB for chat and notification services
 - Start Redis for caching
@@ -77,6 +77,7 @@ You should see the following containers running:
 - `mov-auth-service` (Port 3001)
 - `mov-event-service` (Port 3002)
 - `mov-enrollment-service` (Port 3003)
+- `mov-chat-service` (Port 3004)
 - `mov-postgres` (Port 5433)
 - `mov-mongodb` (Port 27017)
 - `mov-redis` (Port 6379)
@@ -218,6 +219,58 @@ The system provides an interactive API documentation interface using Swagger UI:
 
 ![Mongo Express Interface](docs/screenshots/mongo-express.png)
 
+#### Chat Service Test Interface
+
+**Access URL:** `http://localhost:3004` (Open `chat-test.html` in your browser)
+
+**Purpose:** Real-time chat testing interface for event-based group messaging and direct messages.
+
+**Features:**
+- Real-time WebSocket connection to Chat Service
+- Join event-specific chat rooms
+- Send group messages to all event participants
+- Send direct messages to specific users
+- Pre-enrollment inquiries (ask organizer before enrolling)
+- View message history
+- Typing indicators
+
+**How to Use:**
+
+1. **Get JWT Token:**
+   - First, login via Swagger UI (`http://localhost:3000/api-docs`)
+   - Use `POST /api/v1/auth/login` endpoint
+   - Copy the JWT token from the response
+
+2. **Open Chat Interface:**
+   - Open the file `chat-test.html` in your web browser
+   - Paste your JWT token in the token field
+   - Click "Connect" button
+   - Wait for "✅ Connected to chat service" status
+
+3. **Join Event Room:**
+   - Enter an Event ID (e.g., 1)
+   - Click "Join Event Room"
+   - You're now in the event chat room
+
+4. **Send Messages:**
+   - **Group Message:** Type message and click "Send to Group" (visible to all event participants)
+   - **Direct Message:** Enter receiver's User ID and click "Send Direct Message" (private 1-on-1 chat)
+
+5. **Send Inquiry (Pre-Enrollment):**
+   - Participants can ask questions before enrolling in an event
+   - Enter Event ID, Subject, and Question
+   - Click "Send Inquiry"
+   - Organizer receives the inquiry in real-time
+   - Organizer can reply using the Inquiry ID
+
+**Testing Scenario:**
+- Open two browser windows with different user tokens (one organizer, one participant)
+- Join the same event room in both windows
+- Send messages and see real-time delivery
+- Test inquiries from participant and replies from organizer
+
+![Chat Test Interface](docs/screenshots/chat-test.png)
+
 ### Stopping the System
 
 To stop all running containers:
@@ -249,6 +302,10 @@ The following automated end-to-end tests have been developed to verify user stor
 | FUNC-ENROLL-010 | Event Enrollment Test | Validates participant enrollment in published events |
 | FUNC-ENROLL-020 | Capacity Management Test | Validates maximum participant limit enforcement |
 | FUNC-ENROLL-030 | Unenrollment Test | Validates participant unenrollment from events |
+| FUNC-CHAT-010 | Real-time Messaging Test | Validates WebSocket connection and message delivery |
+| FUNC-CHAT-020 | Group Chat Test | Validates event-specific group messaging |
+| FUNC-CHAT-030 | Direct Messaging Test | Validates one-on-one private messaging |
+| FUNC-CHAT-040 | Inquiry System Test | Validates pre-enrollment inquiry functionality |
 
 **Running Tests:**
 
@@ -258,9 +315,11 @@ docker-compose exec api-gateway npm test
 docker-compose exec auth-service npm test
 docker-compose exec event-service npm test
 docker-compose exec enrollment-service npm test
+docker-compose exec chat-service npm test
 
 # Run tests with coverage
 docker-compose exec auth-service npm run test:coverage
+docker-compose exec chat-service npm run test:coverage
 ```
 
 **Test Reports:**
@@ -414,7 +473,95 @@ Navigate to `DELETE /api/v1/enrollments/{eventId}`
 - Enter the Event ID
 - Click Execute
 
-#### Workflow 3: Viewing Event Statistics (Organizer)
+#### Workflow 4: Real-time Chat Communication
+
+**Prerequisites:** Must have enrolled in an event (for participants) or created an event (for organizers).
+
+**Step 1: Login and Get Token**
+
+1. Login via Swagger UI: `POST /api/v1/auth/login`
+2. Copy the JWT token from the response
+
+**Step 2: Open Chat Interface**
+
+1. Open `chat-test.html` in your web browser
+2. Paste the JWT token in the "JWT Token" field
+3. Click "Connect"
+4. Wait for connection confirmation
+
+**Step 3: Join Event Chat Room**
+
+1. Enter the Event ID (e.g., 1)
+2. Click "Join Event Room"
+3. You'll see a confirmation: "✅ Joined event room #1"
+
+**Step 4: Send Group Message**
+
+1. Type your message in the message input field
+2. Click "Send to Group" or press Enter
+3. Message appears in the chat box
+4. All other users in the same event room will receive it in real-time
+
+**Example:**
+```
+You: Looking forward to this event!
+```
+
+**Step 5: Send Direct Message**
+
+1. Enter the recipient's User ID in "Receiver User ID" field
+2. Type your message
+3. Click "Send Direct Message"
+4. Only the specified user receives this private message
+
+**Example:**
+```
+📨 Direct to User #2 (Event #1): Can we discuss the agenda?
+```
+
+**Step 6: Pre-Enrollment Inquiry (Participants)**
+
+Participants can ask questions before enrolling:
+
+1. Enter the Event ID
+2. Enter a Subject (e.g., "Question about prerequisites")
+3. Enter your question
+4. Click "Send Inquiry"
+5. The organizer receives the inquiry in real-time
+
+**Example Inquiry:**
+```json
+{
+  "eventId": 1,
+  "subject": "Accessibility Requirements",
+  "question": "Is the venue wheelchair accessible?"
+}
+```
+
+**Step 7: Reply to Inquiry (Organizers)**
+
+Organizers can view and reply to inquiries:
+
+1. Click "View Event Inquiries (Organizer)"
+2. Note the Inquiry ID from the displayed list
+3. Enter the Inquiry ID in the "Inquiry ID" field
+4. Type your reply
+5. Click "Reply (Organizer)"
+6. The participant receives the reply in real-time
+
+**Example Reply:**
+```
+Inquiry ID: 507f1f77bcf86cd799439011
+Reply: Yes, the venue is fully wheelchair accessible with ramps and elevators.
+```
+
+**Real-time Features:**
+- Instant message delivery (no page refresh needed)
+- Typing indicators when other users are typing
+- User join/leave notifications
+- Online status of participants
+
+#### Workflow 5: Viewing Event Statistics (Organizer)
 
 **Prerequisites:** Must be logged in as the event organizer (see Workflow 1).
 
@@ -527,6 +674,32 @@ Edit `docker-compose.yml` and change the host port mapping:
 ports:
   - "3001:3000"  # Changes from 3000 to 3001 on host
 ```
+
+**Problem:** Chat service WebSocket connection fails
+
+**Solution:**
+```bash
+# Check chat service is running
+docker-compose logs chat-service
+
+# Verify MongoDB connection
+docker-compose exec mongodb mongosh -u admin -p dev123
+
+# Restart chat service
+docker-compose restart chat-service
+
+# Check if port 3004 is accessible
+curl http://localhost:3004/health
+```
+
+**Problem:** Chat messages not appearing in chat-test.html
+
+**Solution:**
+1. Ensure you're using a valid JWT token (not expired)
+2. Check browser console for WebSocket errors (F12 → Console)
+3. Verify you've joined the event room before sending messages
+4. Confirm other user is in the same event room for group messages
+5. Clear browser cache and reload the page
 
 ### Additional Resources
 
