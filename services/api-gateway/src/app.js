@@ -92,8 +92,14 @@ const proxyOptions = {
     });
   },
 };
-// API Gateway internal auth routes (not proxied)
-app.use('/api/v1/auth', authRoutes);
+// ✅ Secure Logout (handled by API Gateway, not proxied)
+app.post('/api/v1/auth/logout', verifyToken, (req, res) => {
+  if (req.token) {
+    revokeToken(req.token);
+  }
+  return successResponse(res, HTTP_STATUS.OK, 'Logout successful');
+});
+
 
 
 // ============= AUTH SERVICE ROUTES =============
