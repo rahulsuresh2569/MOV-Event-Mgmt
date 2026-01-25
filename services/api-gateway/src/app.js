@@ -6,6 +6,7 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
+const authRoutes = require('./routes/authRoutes');
 const logger = require('./utils/logger');
 const { notFoundHandler, errorHandler } = require('./middleware/errorHandler');
 const { verifyToken, requireRole, optionalAuth, forwardUserContext, revokeToken } = require('./middleware/authMiddleware');
@@ -88,6 +89,9 @@ const proxyOptions = {
     });
   },
 };
+// API Gateway internal auth routes (not proxied)
+app.use('/api/v1/auth', authRoutes);
+
 
 // ============= AUTH SERVICE ROUTES =============
 
