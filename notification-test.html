@@ -427,18 +427,7 @@
             </div>
 
             <div class="panel">
-                <h2>🧪 Test Actions</h2>
-                <h3 style="margin-top: 20px; margin-bottom: 10px; color: #666;">Simulate Events:</h3>
-                <div class="button-group">
-                    <button class="btn-action" onclick="simulateEnrollment()">Enrollment Created</button>
-                    <button class="btn-action" onclick="simulateEventPublished()">Event Published</button>
-                    <button class="btn-action" onclick="simulateCapacity80()">80% Capacity</button>
-                    <button class="btn-action" onclick="simulateEventCancelled()">Event Cancelled</button>
-                    <button class="btn-action" onclick="simulateMessage()">New Message</button>
-                    <button class="btn-action" onclick="simulateInquiry()">New Inquiry</button>
-                </div>
-
-                <h3 style="margin-top: 20px; margin-bottom: 10px; color: #666;">Event Log:</h3>
+                <h2>📜 Event Log</h2>
                 <div class="log-container" id="logContainer"></div>
             </div>
         </div>
@@ -654,115 +643,6 @@
                 toast.classList.add('removing');
                 setTimeout(() => toast.remove(), 300);
             }, 5000);
-        }
-
-        // Simulation functions
-        function simulateEnrollment() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'ENROLLMENT_CREATED',
-                title: 'Enrollment Confirmed',
-                message: 'You have successfully enrolled in "Tech Conference 2026"',
-                priority: 'high'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated enrollment notification', 'info');
-            });
-        }
-
-        function simulateEventPublished() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'EVENT_PUBLISHED',
-                title: 'Event Published',
-                message: 'Your event "Amazing Workshop" is now live!',
-                priority: 'medium'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated event published notification', 'info');
-            });
-        }
-
-        function simulateCapacity80() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'CAPACITY_80_PERCENT',
-                title: 'Event Nearing Capacity',
-                message: '"Tech Conference 2026" is 80% full (80/100)',
-                priority: 'high'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated 80% capacity alert', 'info');
-            });
-        }
-
-        function simulateEventCancelled() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'EVENT_CANCELLED',
-                title: 'Event Cancelled',
-                message: '"Tech Conference 2026" has been cancelled due to unforeseen circumstances',
-                priority: 'critical'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated event cancelled notification', 'info');
-            });
-        }
-
-        function simulateMessage() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'MESSAGE_RECEIVED',
-                title: 'New message from John Doe',
-                message: 'Hey! Are you attending the conference?',
-                priority: 'medium'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated message notification', 'info');
-            });
-        }
-
-        function simulateInquiry() {
-            if (!socket || !socket.connected) {
-                alert('Please connect first');
-                return;
-            }
-
-            const notification = {
-                type: 'INQUIRY_RECEIVED',
-                title: 'New Inquiry',
-                message: 'Jane Smith has a question about "Tech Conference 2026"',
-                priority: 'high'
-            };
-
-            socket.emit('test-notification', notification, (response) => {
-                log('📤 Simulated inquiry notification', 'info');
-            });
         }
 
         function toggleNotificationPanel() {
