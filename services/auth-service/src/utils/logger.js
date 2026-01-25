@@ -31,41 +31,41 @@ const format = winston.format.combine(
   winston.format.printf((info) => `${info.timestamp} ${info.level}: ${info.message}`)
 );
 
-const transports = [
-  new winston.transports.Console(),
-
-  // normal errors
-  new winston.transports.File({
-    filename: 'logs/error.log',
-    level: 'error',
-  }),
-
-  // everything
-  new winston.transports.File({
-    filename: 'logs/all.log',
-  }),
-
-  // alerts for critical failures (we will write to this explicitly)
-  new winston.transports.File({
-    filename: 'logs/alerts.log',
-    level: 'error',
-  }),
-];
-
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   levels: logLevels,
   format,
-  transports,
+  transports: [
+    new winston.transports.Console(),
+
+    // normal errors
+    new winston.transports.File({
+      filename: 'logs/error.log',
+      level: 'error',
+    }),
+
+    // everything
+    new winston.transports.File({
+      filename: 'logs/all.log',
+    }),
+
+    // critical alerts
+    new winston.transports.File({
+      filename: 'logs/alerts.log',
+      level: 'error',
+    }),
+  ],
 });
 
-// helper for alerting (critical failures)
+// ✅ IMPORTANT: attach function AFTER createLogger
 logger.alertCritical = (payload) => {
+  // write to alerts.log (because it is level=error)
   logger.error(
     JSON.stringify({
       alert: true,
       severity: 'CRITICAL',
       ...payload,
+      timestamp: payload?.timestamp || new Date().toISOString(),
     })
   );
 };
