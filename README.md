@@ -1,6 +1,6 @@
 # MOV Event Management System
 
-A distributed microservices-based event management platform built with Node.js, Express.js, PostgreSQL, and MongoDB.
+A distributed microservices-based event management platform built with Node.js, Express.js, PostgreSQL, and MongoDB. Features event lifecycle management, concurrent enrollment handling, and real-time chat communication.
 
 ## 🏗️ Architecture
 
@@ -44,8 +44,6 @@ This project follows a microservices architecture with the following services:
 
 ### Quick Start
 
-**👉 For detailed step-by-step instructions, see [GETTING_STARTED.md](GETTING_STARTED.md)**
-
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
@@ -72,12 +70,18 @@ This project follows a microservices architecture with the following services:
    cd services/api-gateway && npm install
    cd ../auth-service && npm install
    cd ../event-service && npm install
+   cd ../enrollment-service && npm install
+   cd ../chat-service && npm install
+   cd ../notification-service && npm install
    ```
 
 6. **Access the services**
    - API Gateway: http://localhost:3000
    - Auth Service: http://localhost:3001
    - Event Service: http://localhost:3002
+   - Enrollment Service: http://localhost:3003
+   - Chat Service: http://localhost:3004
+   - Notification Service: http://localhost:3005
    - pgAdmin: http://localhost:5050 (admin@mov.com / admin123)
    - Mongo Express: http://localhost:8081
 
@@ -91,19 +95,14 @@ This project follows a microservices architecture with the following services:
 ```
 MOV-Event-Mgmt/
 ├── services/                  # Microservices
-│   ├── api-gateway/          # API Gateway
-│   ├── auth-service/         # Authentication service
-│   ├── event-service/        # Event management service
-│   ├── enrollment-service/   # (To be added in MS3)
-│   ├── chat-service/         # (To be added in MS4)
-│   └── notification-service/ # (To be added in MS4)
-├── shared/                    # Shared code
-│   ├── middleware/           # Common middleware
-│   ├── utils/                # Utility functions
-│   └── constants/            # Shared constants
+│   ├── api-gateway/          # API Gateway (Port 3000)
+│   ├── auth-service/         # Authentication service (Port 3001)
+│   ├── event-service/        # Event management service (Port 3002)
+│   ├── enrollment-service/   # Enrollment and capacity management (Port 3003)
+│   ├── chat-service/         # Real-time chat with Socket.IO (Port 3004)
+│   └── notification-service/ # Notifications service (Port 3005)
 ├── docs/                      # Documentation
-├── scripts/                   # Automation scripts
-├── .github/                   # GitHub Actions workflows
+├── scripts/                   # Database initialization scripts
 ├── docker-compose.yml        # Docker orchestration
 └── package.json              # Root package configuration
 ```
@@ -152,10 +151,13 @@ npm run lint:fix
 
 ## 📚 Documentation
 
-- [Setup Guide](docs/SETUP.md)
+- [Installation & Configuration](Installation_and_Configuration.md)
 - [API Documentation](docs/API.md)
 - [Database Schema](docs/DATABASE_SCHEMA.md)
 - [Architecture Overview](docs/ARCHITECTURE.md)
+- [Event Visibility Rules](docs/EVENT_VISIBILITY_RULES.md)
+- [Inquiry System](docs/INQUIRY_SYSTEM.md)
+- [Development Workflow](docs/DEVELOPMENT_WORKFLOW.md)
 
 ## 🔄 Git Workflow
 
@@ -183,12 +185,12 @@ We follow GitHub Flow with feature branches:
 
 ## 📋 Milestones
 
-- **MS1**: Basic event management and user interaction
-- **MS2**: Event lifecycle and state management
-- **MS3**: Concurrency and capacity handling
-- **MS4**: Real-time chat and notifications
-- **MS5**: Chat service improvements
-- **MS6**: Security, monitoring, and logging
+- ✅ **MS1**: Basic event management and user interaction
+- ✅ **MS2**: Event lifecycle and state management
+- ✅ **MS3**: Concurrency and capacity handling
+- ✅ **MS4**: Real-time chat and notifications
+- ✅ **MS5**: Chat service improvements and inquiries
+- ⚠️ **MS6**: Security, monitoring, and logging (Basic implementation)
 
 ## 👥 Team
 
