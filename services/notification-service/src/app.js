@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const logger = require('./utils/logger');
 const errorHandler = require('./utils/errorHandler');
 const { connectDatabase } = require('./config/database');
@@ -34,10 +35,15 @@ const io = new Server(server, {
 });
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: false  // Allow inline scripts for notification-test.html
+}));
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files from public directory
+app.use(express.static(path.join(__dirname, '../public')));
 
 // HTTP request logging
 if (process.env.NODE_ENV === 'development') {
@@ -71,8 +77,13 @@ socketHandler(io);
 // Initialize socket service with io instance
 initializeSocketService(io);
 
-// Root endpoint
+// Root endpoint - serve notification test page
 app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
   res.json({
     service: 'MOV Notification Service',
     version: '1.0.0',

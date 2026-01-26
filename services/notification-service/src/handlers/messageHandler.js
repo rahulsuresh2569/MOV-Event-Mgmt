@@ -3,41 +3,61 @@ const logger = require('../utils/logger');
 
 /**
  * Handle MESSAGE_RECEIVED event
- * Notify recipient of new direct message
- * Note: Group messages are handled by chat-service directly
+ * Notify recipient of new message (direct or group)
  */
 const handleMessageReceived = async (data) => {
   try {
-    const { messageId, conversationId, senderId, senderName, recipientId, message, conversationType } = data;
+    const { messageId, conversationId, senderId, senderName, recipientId, message, conversationType, eventId, eventTitle } = data;
 
-    // Only handle direct messages (1-on-1)
-    if (conversationType !== 'direct') {
-      logger.debug('Skipping group message notification', {
-        conversationId,
-        conversationType
+    // Handle both direct and group messages
+    if (conversationType === 'direct') {
+      // Direct message notification
+      await createNotification(recipientId, {
+        type: 'MESSAGE_RECEIVED',
+        title: `New message from ${senderName}`,
+        message: message.length > 100 ? `${message.substring(0, 100)}...` : message,
+        priority: 'medium',
+        data: {
+          messageId,
+          conversationId,
+          senderId,
+          senderName,
+          conversationType,
+          eventId,
+          eventTitle
+        }
       });
-      return;
-    }
 
-    await createNotification(recipientId, {
-      type: 'MESSAGE_RECEIVED',
-      title: `New message from ${senderName}`,
-      message: message.length > 100 ? `${message.substring(0, 100)}...` : message,
-      priority: 'medium',
-      data: {
+      logger.info('Direct message notification sent', {
         messageId,
         conversationId,
-        senderId,
-        senderName,
-        conversationType
-      }
-    });
+        recipientId
+      });
+    } else if (conversationType === 'group') {
+      // Group message notification
+      await createNotification(recipientId, {
+        type: 'MESSAGE_RECEIVED',
+        title: `New message in ${eventTitle}`,
+        message: `${senderName}: ${message.length > 100 ? `${message.substring(0, 100)}...` : message}`,
+        priority: 'medium',
+        data: {
+          messageId,
+          conversationId,
+          senderId,
+          senderName,
+          conversationType,
+          eventId,
+          eventTitle
+        }
+      });
 
-    logger.info('Message received notification sent', {
-      messageId,
-      conversationId,
-      recipientId
-    });
+      logger.info('Group message notification sent', {
+        messageId,
+        conversationId,
+        recipientId,
+        eventId
+      });
+    }
   } catch (error) {
     logger.error('Error handling message received event', {
       error: error.message,

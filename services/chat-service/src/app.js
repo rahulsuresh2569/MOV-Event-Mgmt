@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -32,8 +33,8 @@ const io = new Server(server, {
   transports: ['websocket', 'polling'],
 });
 
-// Security middleware
-app.use(helmet());
+// Security middleware - disable CSP for inline scripts in test pages
+app.use(helmet({ contentSecurityPolicy: false }));
 
 // CORS configuration
 const corsOptions = {
@@ -48,6 +49,9 @@ app.use(morgan('combined', { stream: { write: (message) => logger.http(message.t
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve static files (for test UI)
+app.use(express.static(path.join(__dirname, '../public')));
 
 /**
  * @swagger
@@ -84,6 +88,28 @@ app.get('/health', (req, res) => {
     message: 'Chat Service is healthy',
     timestamp: new Date().toISOString(),
     socketConnections: io.engine.clientsCount,
+  });
+});
+
+// Root route - serve test UI
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+// API info endpoint
+app.get('/api', (req, res) => {
+  res.status(200).json({
+    success: true,
+    service: 'MOV Chat Service',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      apiDocs: '/api-docs',
+      apiDocsJson: '/api-docs-json',
+      chat: '/api/v1/events/:eventId/messages',
+      directMessages: '/api/v1/messages',
+      inquiries: '/api/v1/inquiries',
+    },
   });
 });
 

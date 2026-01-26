@@ -361,10 +361,6 @@ const swaggerDefinition = {
       name: 'Chat',
       description: 'Real-time messaging and conversation endpoints',
     },
-    {
-      name: 'Health',
-      description: 'Service health check endpoints',
-    },
   ],
 };
 

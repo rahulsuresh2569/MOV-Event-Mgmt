@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const Conversation = require('../models/Conversation');
 const Inquiry = require('../models/Inquiry');
 const { MESSAGE_TYPES, CONVERSATION_TYPES } = require('../constants/messageTypes');
+const { publishEvent } = require('../config/redis');
 const axios = require('axios');
 
 /**
@@ -76,6 +77,18 @@ const setupSocketHandlers = (io) => {
           await conversation.save();
         }
 
+        // Load chat history (last 50 messages)
+        const chatHistory = await Message.find({
+          eventId,
+          type: MESSAGE_TYPES.GROUP,
+        })
+          .sort({ createdAt: -1 })
+          .limit(50)
+          .lean();
+
+        // Reverse to show oldest first
+        chatHistory.reverse();
+
         // Notify others in the room
         socket.to(eventRoom).emit('user-joined', {
           userId: socket.user.id,
@@ -84,11 +97,22 @@ const setupSocketHandlers = (io) => {
           timestamp: new Date(),
         });
 
-        // Send confirmation to user
+        // Send confirmation to user with chat history
         socket.emit('joined-event-room', {
           eventId,
           conversationId: conversation._id,
           message: 'Successfully joined event chat',
+          chatHistory: chatHistory.map(msg => ({
+            _id: msg._id,
+            senderId: msg.senderId,
+            senderEmail: msg.senderEmail,
+            senderRole: msg.senderRole,
+            eventId: msg.eventId,
+            eventTitle: msg.eventTitle,
+            content: msg.content,
+            type: msg.type,
+            timestamp: msg.createdAt,
+          })),
         });
       } catch (error) {
         logger.error(`Error joining event room: ${error.message}`);
@@ -193,6 +217,29 @@ const setupSocketHandlers = (io) => {
           type: message.type,
           timestamp: message.createdAt,
         });
+
+        // Publish MESSAGE_RECEIVED event to Redis for notifications
+        // Notify all participants except the sender
+        const recipientIds = conversation.participants
+          .filter(p => p.userId !== socket.user.id)
+          .map(p => p.userId);
+
+        for (const recipientId of recipientIds) {
+          await publishEvent('events', {
+            type: 'MESSAGE_RECEIVED',
+            data: {
+              messageId: message._id.toString(),
+              conversationId: conversation._id.toString(),
+              senderId: socket.user.id,
+              senderName: socket.user.email,
+              recipientId: recipientId,
+              message: content,
+              conversationType: 'group',
+              eventId: eventId,
+              eventTitle: eventTitle
+            }
+          });
+        }
 
         logger.info(`Group message sent in event ${eventId} by user ${socket.user.id}`);
       } catch (error) {
@@ -306,6 +353,22 @@ const setupSocketHandlers = (io) => {
           type: message.type,
           conversationId: conversation._id,
           timestamp: message.createdAt,
+        });
+
+        // Publish MESSAGE_RECEIVED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'MESSAGE_RECEIVED',
+          data: {
+            messageId: message._id.toString(),
+            conversationId: conversation._id.toString(),
+            senderId: socket.user.id,
+            senderName: socket.user.email,
+            recipientId: receiverId,
+            message: content,
+            conversationType: 'direct',
+            eventId: eventId,
+            eventTitle: event.title
+          }
         });
 
         // Send confirmation to sender
@@ -425,6 +488,19 @@ const setupSocketHandlers = (io) => {
           timestamp: inquiry.createdAt,
         });
 
+        // Publish INQUIRY_RECEIVED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'INQUIRY_RECEIVED',
+          data: {
+            inquiryId: inquiry._id.toString(),
+            eventId: inquiry.eventId,
+            eventTitle: inquiry.eventTitle,
+            organizerId: event.organizerId,
+            participantName: inquiry.inquirerName,
+            question: inquiry.question
+          }
+        });
+
         // Confirm to sender
         socket.emit('inquiry-sent', {
           inquiryId: inquiry._id,
@@ -477,6 +553,18 @@ const setupSocketHandlers = (io) => {
           timestamp: inquiry.repliedAt,
         });
 
+        // Publish INQUIRY_REPLIED event to Redis for notifications
+        await publishEvent('events', {
+          type: 'INQUIRY_REPLIED',
+          data: {
+            inquiryId: inquiry._id.toString(),
+            eventId: inquiry.eventId,
+            eventTitle: inquiry.eventTitle,
+            participantId: inquiry.inquirerId,
+            organizerName: socket.user.email
+          }
+        });
+
         // Confirm to organizer
         socket.emit('inquiry-reply-sent', {
           inquiryId: inquiry._id,
@@ -505,6 +593,63 @@ const setupSocketHandlers = (io) => {
       } catch (error) {
         logger.error(`Error fetching inquiries: ${error.message}`);
         socket.emit('error', { message: 'Failed to fetch inquiries' });
+      }
+    });
+
+    // ============= EVENT: LOAD MORE CHAT HISTORY =============
+    socket.on('load-more-messages', async (data) => {
+      try {
+        const { eventId, before, limit = 50 } = data;
+
+        if (!eventId) {
+          return socket.emit('error', { message: 'Event ID is required' });
+        }
+
+        // Verify access
+        const hasAccess = await verifyEventAccess(eventId, socket.user.id, socket.user.role);
+        if (!hasAccess) {
+          return socket.emit('error', { message: 'You do not have access to this event chat' });
+        }
+
+        // Build query
+        const query = {
+          eventId,
+          type: MESSAGE_TYPES.GROUP,
+        };
+
+        // If 'before' timestamp provided, only get messages before that time
+        if (before) {
+          query.createdAt = { $lt: new Date(before) };
+        }
+
+        const messages = await Message.find(query)
+          .sort({ createdAt: -1 })
+          .limit(limit)
+          .lean();
+
+        // Reverse to show oldest first
+        messages.reverse();
+
+        socket.emit('more-messages', {
+          eventId,
+          messages: messages.map(msg => ({
+            _id: msg._id,
+            senderId: msg.senderId,
+            senderEmail: msg.senderEmail,
+            senderRole: msg.senderRole,
+            eventId: msg.eventId,
+            eventTitle: msg.eventTitle,
+            content: msg.content,
+            type: msg.type,
+            timestamp: msg.createdAt,
+          })),
+          hasMore: messages.length === limit,
+        });
+
+        logger.info(`Loaded ${messages.length} more messages for event ${eventId}`);
+      } catch (error) {
+        logger.error(`Error loading more messages: ${error.message}`);
+        socket.emit('error', { message: 'Failed to load more messages' });
       }
     });
 

@@ -10,8 +10,11 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install --only=production
 
-# Copy application code
-COPY . .
+# Copy application source code
+COPY src ./src
+
+# Copy public directory with notification test page
+COPY public ./public
 
 # Create logs directory
 RUN mkdir -p logs

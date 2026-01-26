@@ -73,6 +73,22 @@ class AuthController {
   }
 
   /**
+   * Logout user (client-side token invalidation)
+   * POST /api/v1/logout
+   */
+  async logout(req, res, next) {
+    try {
+      // Since we're using JWT, logout is handled client-side by removing the token
+      // This endpoint is here for completeness and future extensions (e.g., token blacklisting)
+      return successResponse(res, HTTP_STATUS.OK, 'Logout successful', {
+        message: 'Please remove the token from client storage'
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
    * Get user by ID (for service-to-service calls)
    * GET /users/:id
    */

@@ -11,7 +11,8 @@ COPY package*.json ./
 RUN npm install --production
 
 # Copy source code
-COPY . .
+COPY src ./src
+COPY public ./public
 
 # Expose port
 EXPOSE 3004
